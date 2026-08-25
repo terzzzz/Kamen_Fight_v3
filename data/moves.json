@@ -34,5 +34,129 @@
     "A+J": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
     "A+K": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
     "A+L": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" }
+  },
+  "v3": {
+    "W+I": {
+      "name": "Leap",
+      "type": "UTILITY",
+      "chiCost": 3,
+      "baseDamage": 0,
+      "hitChance": 100,
+      "video": "v3_jump.mp4",
+      "grantsAirborne": 2,
+      "buff": {
+        "id": "airborne_boost",
+        "label": "AIR (+15% D ATK / +15% EVS)",
+        "type": "speed",
+        "duration": 2
+      }
+    },
+    "W+J": {
+      "name": "Accelerator",
+      "type": "UTILITY",
+      "chiCost": 4,
+      "baseDamage": 0,
+      "hitChance": 100,
+      "video": "double_typhoon.mp4",
+      "buff": {
+        "id": "double_typhoon_speed",
+        "label": "DOUBLE TYPHOON (+20% SPEED)",
+        "type": "speed",
+        "duration": 3
+      }
+    },
+    "W+K": {
+      "name": "Red Lamp Focus",
+      "type": "UTILITY",
+      "chiCost": 3,
+      "baseDamage": 0,
+      "hitChance": 100,
+      "video": "red_lamp.mp4",
+      "buff": {
+        "id": "red_lamp_boost",
+        "label": "RED LAMP (+15% D/S ATK)",
+        "type": "attack",
+        "duration": 2
+      }
+    },
+    "W+L": {
+      "name": "Double Typhoon Blow",
+      "type": "SPECIAL",
+      "rangeType": "REACH",
+      "chiCost": 3,
+      "baseDamage": 50,
+      "baseFaintDamage": 30,
+      "hitChance": 80,
+      "video": "red_bone.mp4"
+    },
+    "D+J": {
+      "name": "Chop",
+      "type": "PHYSICAL",
+      "chiCost": 0,
+      "baseDamage": 70,
+      "hitChance": 79,
+      "video": "chop.mp4"
+    },
+    "D+K": {
+      "name": "High Kick",
+      "type": "PHYSICAL",
+      "chiCost": 0,
+      "baseDamage": 85,
+      "hitChance": 80,
+      "video": "kick.mp4"
+    },
+    "D+L": {
+      "name": "Chop Combo",
+      "type": "PHYSICAL",
+      "chiCost": 1,
+      "baseDamage": 136,
+      "hitChance": 79,
+      "video": "chop_comb.mp4"
+    },
+    "D+I": {
+      "name": "Mixed Hits",
+      "type": "PHYSICAL",
+      "chiCost": 1,
+      "baseDamage": 126,
+      "hitChance": 80,
+      "video": "mixed_comb.mp4",
+      "unmirrored": true
+    },
+    "S+J": {
+      "name": "V3 Kick",
+      "type": "SPECIAL",
+      "chiCost": 4,
+      "baseDamage": 215,
+      "hitChance": 78,
+      "video": "V3_kick.mp4"
+    },
+    "S+K": {
+      "name": "V3 Return Kick",
+      "type": "SPECIAL",
+      "chiCost": 6,
+      "baseDamage": 260,
+      "hitChance": 72,
+      "video": "v3_return.mp4"
+    },
+    "S+L": {
+      "name": "V3 Screw Kick",
+      "type": "SPECIAL",
+      "chiCost": 8,
+      "baseDamage": 460,
+      "hitChance": 68,
+      "video": "v3_hanten_kick.mp4"
+    },
+    "S+I": {
+      "name": "V3 Triple Kick",
+      "type": "SPECIAL",
+      "chiCost": 11,
+      "baseDamage": 580,
+      "hitChance": 74,
+      "video": "v3_kirimomi.mp4"
+    },
+    "A+I": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
+    "A+J": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
+    "A+K": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
+    "A+L": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" }
   }
 }
