@@ -8,7 +8,7 @@ const COMBAT_RULES = window.COMBAT_RULES || {
   HIT_BUILDUP: 25,
   ROUND_RECOVERY: 13,
   FAINT_PENALTY_CHI_GUARD: 15,
-  FAINT_PENALTY_STANDARD_GUARD: 25,
+  FAINT_PENALTY_STANDARD_GUARD: 12, // Reduced from 25 to mitigate self-stunning loop
   FAINT_PENALTY_IDLE_GUARD: 5,
   STARTING_CHI: 8,
   MAX_CHI: 16,
@@ -451,39 +451,57 @@ async function executeTurnResolutionPhase() {
   const p2StartFaint = gameState.p2.faintMeter;
 
   let p1MoveKey = null;
-  if (gameState.p1.isCPU) {
-    p1MoveKey = getCPUMoveChoice(gameState.p1, gameState.p2, 'p1');
-    if (gameState.p1.activeChargePercent === undefined) {
-      gameState.p1.activeChargePercent = 100;
+  let p2MoveKey = null;
+
+  // RANDOMIZE CPU DECISION ORDER IN CPU VS CPU MATCHES TO ELIMINATE SLOT BIAS
+  if (gameState.p1.isCPU && gameState.p2.isCPU) {
+    if (gameState.input) gameState.input = null;
+    gameState.p1SelectedMoveKey = null;
+    gameState.p2SelectedMoveKey = null;
+
+    if (Math.random() < 0.5) {
+      p1MoveKey = getCPUMoveChoice(gameState.p1, gameState.p2, 'p1');
+      p2MoveKey = getCPUMoveChoice(gameState.p2, gameState.p1, 'p2');
+    } else {
+      p2MoveKey = getCPUMoveChoice(gameState.p2, gameState.p1, 'p2');
+      p1MoveKey = getCPUMoveChoice(gameState.p1, gameState.p2, 'p1');
     }
   } else {
-    p1MoveKey = gameState.input ? gameState.input.selectedMoveKey : null;
-
-    if (gameState.p1.activeChargePercent === undefined) {
-      if (gameState.input && typeof gameState.input.currentPercent === 'number' && gameState.input.currentPercent > 0) {
-        gameState.p1.activeChargePercent = gameState.input.currentPercent;
-      } else {
+    if (gameState.p1.isCPU) {
+      p1MoveKey = getCPUMoveChoice(gameState.p1, gameState.p2, 'p1');
+      if (gameState.p1.activeChargePercent === undefined) {
         gameState.p1.activeChargePercent = 100;
       }
-    }
-  }
-  if (!p1MoveKey) p1MoveKey = 'DO_NOTHING';
+    } else {
+      p1MoveKey = gameState.input ? gameState.input.selectedMoveKey : null;
 
-  let p2MoveKey = gameState.p2AlwaysIdle ? 'DO_NOTHING' : gameState.p2SelectedMoveKey;
-  if (!p2MoveKey && gameState.p2.isCPU && !gameState.p2AlwaysIdle) {
-    p2MoveKey = getCPUMoveChoice(gameState.p2, gameState.p1, 'p2');
-    if (gameState.p2.activeChargePercent === undefined) {
-      gameState.p2.activeChargePercent = 100;
+      if (gameState.p1.activeChargePercent === undefined) {
+        if (gameState.input && typeof gameState.input.currentPercent === 'number' && gameState.input.currentPercent > 0) {
+          gameState.p1.activeChargePercent = gameState.input.currentPercent;
+        } else {
+          gameState.p1.activeChargePercent = 100;
+        }
+      }
     }
-  } else if (!gameState.p2.isCPU) {
-    if (gameState.p2.activeChargePercent === undefined) {
-      if (typeof gameState.p2ChargePercent === 'number') {
-        gameState.p2.activeChargePercent = gameState.p2ChargePercent;
-      } else {
+
+    p2MoveKey = gameState.p2AlwaysIdle ? 'DO_NOTHING' : gameState.p2SelectedMoveKey;
+    if (!p2MoveKey && gameState.p2.isCPU && !gameState.p2AlwaysIdle) {
+      p2MoveKey = getCPUMoveChoice(gameState.p2, gameState.p1, 'p2');
+      if (gameState.p2.activeChargePercent === undefined) {
         gameState.p2.activeChargePercent = 100;
+      }
+    } else if (!gameState.p2.isCPU) {
+      if (gameState.p2.activeChargePercent === undefined) {
+        if (typeof gameState.p2ChargePercent === 'number') {
+          gameState.p2.activeChargePercent = gameState.p2ChargePercent;
+        } else {
+          gameState.p2.activeChargePercent = 100;
+        }
       }
     }
   }
+
+  if (!p1MoveKey) p1MoveKey = 'DO_NOTHING';
   if (!p2MoveKey) p2MoveKey = 'DO_NOTHING';
 
   if (gameState.p1.isCPU && p1MoveKey !== 'DO_NOTHING' && typeof simulateCPUButtonPress === 'function') {
