@@ -395,3 +395,10 @@ function validateAndStartMatch() {
     startBattle(matchConfig);
   }
 }
+
+function changeBGMVolume(val) {
+  const volume = parseFloat(val);
+  if (selectionBGM) {
+    selectionBGM.volume = volume;
+  }
+}
