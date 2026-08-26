@@ -1,3 +1,8 @@
+/**
+ * Character Selection, BGM Manager & Match Simulator Controller
+ * Path: js/vs_select.js
+ */
+
 // BGM Audio Controllers
 let selectionBGM = null;
 let battleBGM = null;
@@ -56,8 +61,9 @@ function stopBattleBGM() {
 
 // Fallback Roster Storage
 let AVAILABLE_RIDERS = [
-  { id: 'ichigo', name: 'Kamen Rider Ichigo', icon: 'assets/images/icons/ichigo.png', maxLp: 1050 },
-  { id: 'nigo', name: 'Kamen Rider Nigo', icon: 'assets/images/icons/nigo.png', maxLp: 1200 }
+  { id: 'ichigo', name: 'Kamen Rider Ichigo', icon: 'assets/images/icons/ichigo.png', maxLp: 1850 },
+  { id: 'nigo', name: 'Kamen Rider Nigo', icon: 'assets/images/icons/nigo.png', maxLp: 2000 },
+  { id: 'v3', name: 'Kamen Rider V3', icon: 'assets/images/icons/v3.png', maxLp: 1950 }
 ];
 
 let vsSelectionState = {
@@ -70,7 +76,7 @@ let vsSelectionState = {
   p2Difficulty: 'normal'
 };
 
-// Global Initialization & Mobile Audio Unlock
+// Global Initialization, Mobile Audio Unlock & Simulation Bindings
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     const res = await fetch('data/riders.json');
@@ -86,6 +92,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   updateSelectionUI();
+
+  // Bind Match Simulation Button
+  const simBtn = document.getElementById('btn-simulate-matches');
+  if (simBtn) {
+    simBtn.addEventListener('click', handleSimulateMatches);
+  }
+
+  // Bind Simulation Modal Close Button
+  const closeSimBtn = document.getElementById('btn-close-sim-modal');
+  if (closeSimBtn) {
+    closeSimBtn.addEventListener('click', () => {
+      const modal = document.getElementById('sim-modal');
+      if (modal) modal.hidden = true;
+    });
+  }
 
   // Bypass Mobile Autoplay Restrictions on First Touch
   const unlockAudio = () => {
@@ -222,6 +243,8 @@ function updateSelectionUI() {
   const p2LeftBtn = document.getElementById('p2-left-btn');
   const p2RightBtn = document.getElementById('p2-right-btn');
 
+  const simBtn = document.getElementById('btn-simulate-matches');
+
   if (vsSelectionState.step === 1) {
     if (headerText) headerText.textContent = 'STEP 1: SELECT PLAYER 1 RIDER';
     if (p1Card) p1Card.className = 'rider-card active-slot';
@@ -239,6 +262,7 @@ function updateSelectionUI() {
     }
     if (startBtn) startBtn.hidden = true;
     if (backBtn) backBtn.disabled = true;
+    if (simBtn) simBtn.disabled = true;
 
   } else if (vsSelectionState.step === 2) {
     if (headerText) headerText.textContent = 'STEP 2: SELECT PLAYER 2 RIDER (CPU)';
@@ -257,6 +281,7 @@ function updateSelectionUI() {
     }
     if (startBtn) startBtn.hidden = true;
     if (backBtn) backBtn.disabled = false;
+    if (simBtn) simBtn.disabled = false;
 
   } else if (vsSelectionState.step === 3) {
     if (headerText) headerText.textContent = 'READY FOR BATTLE!';
@@ -274,7 +299,81 @@ function updateSelectionUI() {
       startBtn.disabled = false;
     }
     if (backBtn) backBtn.disabled = false;
+    if (simBtn) simBtn.disabled = false;
   }
+}
+
+// IN-BROWSER BATCH MATCH SIMULATION HANDLER
+function handleSimulateMatches() {
+  if (typeof runBatchSimulation !== 'function') {
+    alert('Simulation engine (js/simulator.js) is not loaded!');
+    return;
+  }
+
+  const p1Rider = AVAILABLE_RIDERS[vsSelectionState.p1Index] || AVAILABLE_RIDERS[0];
+  const p2Rider = AVAILABLE_RIDERS[vsSelectionState.p2Index] || AVAILABLE_RIDERS[0];
+
+  const countSelect = document.getElementById('sim-count-select');
+  const matchCount = countSelect ? parseInt(countSelect.value, 10) : 20;
+  const difficulty = vsSelectionState.p2Difficulty || 'normal';
+
+  const resultsBody = document.getElementById('sim-results-body');
+  const modal = document.getElementById('sim-modal');
+
+  if (resultsBody) {
+    resultsBody.innerHTML = `<p class="sim-loading">SIMULATING ${matchCount} MATCHES... PLEASE WAIT...</p>`;
+  }
+  if (modal) modal.hidden = false;
+
+  // Asynchronous execution to prevent main UI thread freeze
+  setTimeout(() => {
+    const res = runBatchSimulation(p1Rider, p2Rider, matchCount, difficulty);
+
+    if (resultsBody) {
+      const overallWinner = res.p1Wins > res.p2Wins ? res.p1Name : (res.p2Wins > res.p1Wins ? res.p2Name : 'TIE MATCH');
+
+      resultsBody.innerHTML = `
+        <div class="sim-summary-header">
+          <p class="sim-matchup-title"><strong>${res.p1Name}</strong> VS <strong>${res.p2Name}</strong></p>
+          <p class="sim-winner-announce">OVERALL WINNER: <span class="highlight-winner">${overallWinner.toUpperCase()}</span></p>
+        </div>
+        <table class="sim-table">
+          <thead>
+            <tr>
+              <th>STATISTIC</th>
+              <th>${res.p1Name.toUpperCase()}</th>
+              <th>${res.p2Name.toUpperCase()}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Victories (Win Rate)</td>
+              <td><strong>${res.p1Wins}</strong> (${res.p1WinRate}%)</td>
+              <td><strong>${res.p2Wins}</strong> (${res.p2WinRate}%)</td>
+            </tr>
+            <tr>
+              <td>Avg. LP Remaining</td>
+              <td>${res.p1AvgLpLeft} LP</td>
+              <td>${res.p2AvgLpLeft} LP</td>
+            </tr>
+            <tr>
+              <td>Avg. Chi Remaining</td>
+              <td>${res.p1AvgChiLeft} / 16 Chi</td>
+              <td>${res.p2AvgChiLeft} / 16 Chi</td>
+            </tr>
+            <tr>
+              <td>Avg. Match Duration</td>
+              <td colspan="2">${res.avgRounds} Rounds</td>
+            </tr>
+            <tr>
+              <td>Draws / Double KO</td>
+              <td colspan="2">${res.draws}</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+    }
+  }, 50);
 }
 
 function validateAndStartMatch() {
