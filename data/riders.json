@@ -27,7 +27,7 @@
     "icon": "assets/images/icons/v3.png",
     "videoFolder": "assets/videos/v3/",
     "finisher": "V3 Double Kick",
-    "active": false
+    "active": true
   },
   {
     "id": "riderman",
