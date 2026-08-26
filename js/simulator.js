@@ -296,9 +296,22 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
       p1.roundCounter = roundCounter;
       p2.roundCounter = roundCounter;
 
-      // Select moves using individual difficulties
-      const p1MoveKey = selectCPUMoveSim(p1, p2, p1Moves, p1Difficulty);
-      const p2MoveKey = selectCPUMoveSim(p2, p1, p2Moves, p2Difficulty);
+      // 1. Clear global input state before move evaluation to prevent side-reading
+      if (window.gameState) {
+        window.gameState.input = null;
+        window.gameState.p1SelectedMoveKey = null;
+        window.gameState.p2SelectedMoveKey = null;
+      }
+
+      // 2. Randomize AI calculation order so neither slot gets state priority
+      let p1MoveKey, p2MoveKey;
+      if (Math.random() < 0.5) {
+        p1MoveKey = selectCPUMoveSim(p1, p2, p1Moves, p1Difficulty);
+        p2MoveKey = selectCPUMoveSim(p2, p1, p2Moves, p2Difficulty);
+      } else {
+        p2MoveKey = selectCPUMoveSim(p2, p1, p2Moves, p2Difficulty);
+        p1MoveKey = selectCPUMoveSim(p1, p2, p1Moves, p1Difficulty);
+      }
 
       const defaultMove = { name: 'Do Nothing', type: 'IDLE', baseDamage: 0, chiCost: 0 };
       const m1 = p1Moves[p1MoveKey] || defaultMove;
@@ -336,6 +349,7 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
 
       let def1WasInterrupted = false;
 
+      // STEP 1 EXECUTION
       if (move1.type !== 'IDLE' && key1 !== 'DO_NOTHING') {
         if (move1.buff) applyBuffSim(atk1, move1.buff.id, move1.buff.label, move1.buff.type, move1.buff.duration, roundCounter);
         handleAirborneStateSim(atk1, key1, move1, roundCounter);
@@ -386,6 +400,7 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
         }
       }
 
+      // STEP 2 EXECUTION
       if (def2.lp > 0 && !atk2.isFainted && !def1WasInterrupted && move2.type !== 'IDLE' && key2 !== 'DO_NOTHING' && move2.type !== 'DEFENSE') {
         if (move2.buff) applyBuffSim(atk2, move2.buff.id, move2.buff.label, move2.buff.type, move2.buff.duration, roundCounter);
         handleAirborneStateSim(atk2, key2, move2, roundCounter);
@@ -470,4 +485,8 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
     p2AvgLpLeft: Math.round(stats.p2EndLpSum / count),
     p2AvgChiLeft: (stats.p2EndChiSum / count).toFixed(1)
   };
+}
+
+if (typeof window !== 'undefined') {
+  window.runBatchSimulation = runBatchSimulation;
 }
