@@ -8,7 +8,7 @@ const COMBAT_RULES = window.COMBAT_RULES || {
   HIT_BUILDUP: 25,
   ROUND_RECOVERY: 13,
   FAINT_PENALTY_CHI_GUARD: 15,
-  FAINT_PENALTY_STANDARD_GUARD: 12, // Reduced from 25 to mitigate self-stunning loop
+  FAINT_PENALTY_STANDARD_GUARD: 12,
   FAINT_PENALTY_IDLE_GUARD: 5,
   STARTING_CHI: 8,
   MAX_CHI: 16,
@@ -53,11 +53,40 @@ function triggerStaggeredPopups(slotKey, popups) {
   });
 }
 
+// ROUND STATE CLEANUP HANDLER (FIXES LONG BATTLE MODE ROUND 2 TRANSITION)
+function resetRoundState() {
+  gameState.input = null;
+  gameState.p1SelectedMoveKey = null;
+  gameState.p2SelectedMoveKey = null;
+  gameState.p1IsConfirmed = false;
+  gameState.p2IsConfirmed = false;
+
+  if (gameState.p1) gameState.p1.activeChargePercent = undefined;
+  if (gameState.p2) gameState.p2.activeChargePercent = undefined;
+  gameState.p2ChargePercent = undefined;
+
+  gameState.roundPhase = 'INPUT';
+
+  ['p1', 'p2'].forEach(slot => {
+    const player = gameState[slot];
+    if (player) {
+      player.willBeFaintedNextRound = false;
+      if (player.faintMeter < (window.COMBAT_RULES || COMBAT_RULES).FAINT_THRESHOLD) {
+        player.isFainted = false;
+        const stunOverlay = document.getElementById(`${slot}-stun-overlay`);
+        if (stunOverlay) stunOverlay.hidden = true;
+      }
+    }
+  });
+}
+
 // BATTLE INITIALIZATION WITH GUARANTEED LIFECYCLE UNLOCK
 async function startBattle(matchConfig) {
   if (!window.gameState) window.gameState = {};
   gameState.matchConfig = matchConfig || {};
   if (!gameState.videoCache) gameState.videoCache = {};
+
+  resetRoundState();
 
   const transitionScreen = document.getElementById('match-transition-screen');
   const splashNames = document.getElementById('splash-names-text');
@@ -858,6 +887,10 @@ async function executeTurnResolutionPhase() {
 
     if (gameState.p1.lp > 0 && gameState.p2.lp > 0) {
       gameState.roundCounter++;
+
+      // RESET STALE INPUTS AND FLAGS BEFORE NEXT ROUND
+      resetRoundState();
+
       if (typeof startRoundCountdown === 'function') {
         startRoundCountdown();
       }
