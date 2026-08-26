@@ -23,6 +23,23 @@ const GAME_CONFIG = window.GAME_CONFIG || {
   HARD_CPU_HP_MULTIPLIER: 1.30
 };
 
+// HELPER: CALCULATE RANGE PRIORITY (PROJECTILE > REACH > MELEE)
+function getMoveRangePriority(move) {
+  if (!move) return 1;
+  const range = (move.rangeType || 'MELEE').toUpperCase();
+  if (range === 'PROJECTILE') return 3;
+  if (range === 'REACH' || range === 'ROPE' || range === 'MID_RANGE') return 2;
+  return 1; // MELEE
+}
+
+// HELPER: CALCULATE DYNAMIC FAINT BUILD-UP FROM MOVE DATA
+function getFaintDamageForMove(move) {
+  if (move && typeof move.baseFaintDamage === 'number') {
+    return move.baseFaintDamage;
+  }
+  return (window.COMBAT_RULES || COMBAT_RULES).HIT_BUILDUP || 25;
+}
+
 // HELPER: QUEUE POP-UPS WITH STRICT 0.7 SECOND (700ms) INTERVALS
 function triggerStaggeredPopups(slotKey, popups) {
   popups.forEach((item, index) => {
@@ -184,6 +201,8 @@ function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
   let chosenKey = null;
   if (cpuPlayer.id === 'ichigo' && typeof selectIchigoCPUMove === 'function') {
     chosenKey = selectIchigoCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
+  } else if (cpuPlayer.id === 'v3' && typeof selectV3CPUMove === 'function') {
+    chosenKey = selectV3CPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
   } else if (typeof selectCPUMove === 'function') {
     chosenKey = selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
   }
@@ -497,16 +516,28 @@ async function executeTurnResolutionPhase() {
   let p1IsD = p1MoveKey.startsWith('D');
   let p2IsD = p2MoveKey.startsWith('D');
 
+  let p1RangePriority = getMoveRangePriority(p1Move);
+  let p2RangePriority = getMoveRangePriority(p2Move);
+
   if (!p1IsIdle && p2IsIdle) {
     p1GoesFirst = true;
   } else if (p1IsIdle && !p2IsIdle) {
     p1GoesFirst = false;
   } 
+  // 1. RANGE PRIORITY CHECK (PROJECTILE > REACH > MELEE)
+  else if (p1RangePriority > p2RangePriority) {
+    p1GoesFirst = true;
+  } else if (p1RangePriority < p2RangePriority) {
+    p1GoesFirst = false;
+  } 
+  // 2. SPECIAL VS PHYSICAL CHECK
   else if (p1IsS && p2IsD) {
     p1GoesFirst = true;
   } else if (p1IsD && p2IsS) {
     p1GoesFirst = false;
-  } else {
+  } 
+  // 3. CHARGE SPEED TIE-BREAKER
+  else {
     let p1Charge = gameState.p1.activeChargePercent !== undefined ? gameState.p1.activeChargePercent : 100;
     let p2Charge = gameState.p2.activeChargePercent !== undefined ? gameState.p2.activeChargePercent : 100;
 
@@ -607,7 +638,7 @@ async function executeTurnResolutionPhase() {
               { type: 'number', amount: result.finalDmg, isHeal: false }
             ]);
 
-            await applyFaintBuildUp(defender1, defKey1);
+            await applyFaintBuildUp(defender1, defKey1, getFaintDamageForMove(move1));
           }
         } else if (!result.hitLanded) {
           await playCenterVideo(defKey1, 'dodge.mp4', 'DODGED!');
@@ -636,7 +667,7 @@ async function executeTurnResolutionPhase() {
             { type: 'number', amount: result.finalDmg, isHeal: false }
           ]);
 
-          await applyFaintBuildUp(defender1, defKey1);
+          await applyFaintBuildUp(defender1, defKey1, getFaintDamageForMove(move1));
         }
       }
     }
@@ -699,7 +730,7 @@ async function executeTurnResolutionPhase() {
             { type: 'number', amount: result.finalDmg, isHeal: false }
           ]);
 
-          await applyFaintBuildUp(defender2, defKey2);
+          await applyFaintBuildUp(defender2, defKey2, getFaintDamageForMove(move2));
         }
       } else if (!result.hitLanded) {
         await playCenterVideo(defKey2, 'dodge.mp4', 'DODGED!');
@@ -726,7 +757,7 @@ async function executeTurnResolutionPhase() {
           { type: 'number', amount: result.finalDmg, isHeal: false }
         ]);
 
-        await applyFaintBuildUp(defender2, defKey2);
+        await applyFaintBuildUp(defender2, defKey2, getFaintDamageForMove(move2));
       }
     }
 
