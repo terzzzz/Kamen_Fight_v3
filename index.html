@@ -10,6 +10,10 @@
 
   <!-- CHARACTER SELECTION SCREEN (VISIBLE ON BOOT) -->
   <div id="vs-select-screen" class="screen-container">
+    <div class="bgm-volume-control" style="position: absolute; top: 15px; right: 20px; display: flex; align-items: center; gap: 8px; font-family: monospace; color: #00ffcc;">
+  <label for="bgm-slider">🔊 BGM:</label>
+  <input type="range" id="bgm-slider" min="0" max="1" step="0.05" value="0.5" oninput="changeBGMVolume(this.value)" style="cursor: pointer; accent-color: #00ffcc;">
+</div>
     <h1 id="vs-header-text">STEP 1: SELECT PLAYER 1 RIDER</h1>
 
     <div class="selection-layout">
