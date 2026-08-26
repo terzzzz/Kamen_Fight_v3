@@ -246,7 +246,7 @@ function selectCPUMoveSim(cpuPlayer, opponentPlayer, movesData, difficulty) {
   return keys[Math.floor(Math.random() * keys.length)] || 'D+J';
 }
 
-async function runBatchSimulation(p1Rider, p2Rider, count = 20, difficulty = 'normal') {
+async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = 'normal', p2Difficulty = 'normal') {
   const allMoves = await loadSimulatorMoves();
   const rules = window.COMBAT_RULES || {
     FAINT_THRESHOLD: 100,
@@ -270,10 +270,10 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, difficulty = 'no
   for (let matchIndex = 0; matchIndex < count; matchIndex++) {
     let p1MaxLp = p1Rider.maxLp || 1850;
     let p2MaxLp = p2Rider.maxLp || 2000;
-    if (difficulty === 'hard') {
-      p1MaxLp = Math.floor(p1MaxLp * hpMultiplier);
-      p2MaxLp = Math.floor(p2MaxLp * hpMultiplier);
-    }
+
+    // Apply Hard HP Multipliers independently
+    if (p1Difficulty === 'hard') p1MaxLp = Math.floor(p1MaxLp * hpMultiplier);
+    if (p2Difficulty === 'hard') p2MaxLp = Math.floor(p2MaxLp * hpMultiplier);
 
     let p1 = {
       id: p1Rider.id || 'ichigo', name: p1Rider.name || 'P1', maxLp: p1MaxLp, lp: p1MaxLp,
@@ -296,8 +296,9 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, difficulty = 'no
       p1.roundCounter = roundCounter;
       p2.roundCounter = roundCounter;
 
-      const p1MoveKey = selectCPUMoveSim(p1, p2, p1Moves, difficulty);
-      const p2MoveKey = selectCPUMoveSim(p2, p1, p2Moves, difficulty);
+      // Select moves using individual difficulties
+      const p1MoveKey = selectCPUMoveSim(p1, p2, p1Moves, p1Difficulty);
+      const p2MoveKey = selectCPUMoveSim(p2, p1, p2Moves, p2Difficulty);
 
       const defaultMove = { name: 'Do Nothing', type: 'IDLE', baseDamage: 0, chiCost: 0 };
       const m1 = p1Moves[p1MoveKey] || defaultMove;
@@ -335,7 +336,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, difficulty = 'no
 
       let def1WasInterrupted = false;
 
-      // STEP 1 EXECUTION
       if (move1.type !== 'IDLE' && key1 !== 'DO_NOTHING') {
         if (move1.buff) applyBuffSim(atk1, move1.buff.id, move1.buff.label, move1.buff.type, move1.buff.duration, roundCounter);
         handleAirborneStateSim(atk1, key1, move1, roundCounter);
@@ -386,7 +386,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, difficulty = 'no
         }
       }
 
-      // STEP 2 EXECUTION
       if (def2.lp > 0 && !atk2.isFainted && !def1WasInterrupted && move2.type !== 'IDLE' && key2 !== 'DO_NOTHING' && move2.type !== 'DEFENSE') {
         if (move2.buff) applyBuffSim(atk2, move2.buff.id, move2.buff.label, move2.buff.type, move2.buff.duration, roundCounter);
         handleAirborneStateSim(atk2, key2, move2, roundCounter);
@@ -471,8 +470,4 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, difficulty = 'no
     p2AvgLpLeft: Math.round(stats.p2EndLpSum / count),
     p2AvgChiLeft: (stats.p2EndChiSum / count).toFixed(1)
   };
-}
-
-if (typeof window !== 'undefined') {
-  window.runBatchSimulation = runBatchSimulation;
 }
