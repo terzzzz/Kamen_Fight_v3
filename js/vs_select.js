@@ -303,7 +303,6 @@ function updateSelectionUI() {
   }
 }
 
-// IN-BROWSER BATCH MATCH SIMULATION HANDLER
 async function handleSimulateMatches() {
   if (typeof runBatchSimulation !== 'function') {
     alert('Simulation engine (js/simulator.js) is not loaded!');
@@ -315,7 +314,10 @@ async function handleSimulateMatches() {
 
   const countSelect = document.getElementById('sim-count-select');
   const matchCount = countSelect ? parseInt(countSelect.value, 10) : 20;
-  const difficulty = vsSelectionState.p2Difficulty || 'normal';
+
+  // Read both difficulties independently
+  const p1Diff = vsSelectionState.p1Difficulty || 'normal';
+  const p2Diff = vsSelectionState.p2Difficulty || 'normal';
 
   const resultsBody = document.getElementById('sim-results-body');
   const modal = document.getElementById('sim-modal');
@@ -325,17 +327,16 @@ async function handleSimulateMatches() {
   }
   if (modal) modal.hidden = false;
 
-  // Asynchronous execution wrapper to allow UI render
   setTimeout(async () => {
     try {
-      const res = await runBatchSimulation(p1Rider, p2Rider, matchCount, difficulty);
+      const res = await runBatchSimulation(p1Rider, p2Rider, matchCount, p1Diff, p2Diff);
 
       if (resultsBody) {
         const overallWinner = res.p1Wins > res.p2Wins ? res.p1Name : (res.p2Wins > res.p1Wins ? res.p2Name : 'TIE MATCH');
 
         resultsBody.innerHTML = `
           <div class="sim-summary-header">
-            <p class="sim-matchup-title"><strong>${res.p1Name}</strong> VS <strong>${res.p2Name}</strong></p>
+            <p class="sim-matchup-title"><strong>${res.p1Name} (${p1Diff.toUpperCase()})</strong> VS <strong>${res.p2Name} (${p2Diff.toUpperCase()})</strong></p>
             <p class="sim-winner-announce">OVERALL WINNER: <span class="highlight-winner">${overallWinner.toUpperCase()}</span></p>
           </div>
           <table class="sim-table" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
