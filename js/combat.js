@@ -170,11 +170,13 @@ async function startBattle(matchConfig) {
         ]);
         const timeoutTask = new Promise(resolve => setTimeout(resolve, 1200));
         await Promise.race([preloadTask, timeoutTask]);
-      } catch (err) {}
+      } catch (err) {
+        console.warn("Video preload skipped/timed out:", err);
+      }
     }
 
     if (splashRound) splashRound.textContent = "GET READY FOR THE FIGHT!";
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 1200));
 
   } catch (err) {
     console.error("Match error:", err);
@@ -189,8 +191,12 @@ async function startBattle(matchConfig) {
       updateCharacterMedia('p2', 'IDLE');
     }
 
-    if (typeof startRoundCountdown === 'function') {
-      startRoundCountdown();
+    // SAFE WINDOW SCOPE TIMER INVOCATION
+    const launchCountdown = window.startRoundCountdown || (typeof startRoundCountdown === 'function' ? startRoundCountdown : null);
+    if (launchCountdown) {
+      launchCountdown();
+    } else {
+      gameState.roundPhase = 'INPUT';
     }
   }
 }
@@ -903,8 +909,11 @@ async function executeTurnResolutionPhase() {
       // RESET STALE INPUTS AND FLAGS BEFORE NEXT ROUND
       resetRoundState();
 
-      if (typeof startRoundCountdown === 'function') {
-        startRoundCountdown();
+      const launchCountdown = window.startRoundCountdown || (typeof startRoundCountdown === 'function' ? startRoundCountdown : null);
+      if (launchCountdown) {
+        launchCountdown();
+      } else {
+        gameState.roundPhase = 'INPUT';
       }
     } else {
       gameState.roundPhase = 'GAME_OVER';
@@ -990,9 +999,8 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
     let defenderChargeFactor = Math.sqrt(0.5 + (0.5 * defenderChargeRatio));
     let effectiveGuardChance = 70 * defenderChargeFactor;
 
-    // FIX: SPECIAL/FULL BLOCK GUARDS COST CHI OR HAVE SPECIFIC NAMES.
-    // 0-COST GUARDS (E.G. A+I FOR RIDERMAN/STANDARD RIDERS) ACT AS MATCHING COUNTERS.
-    const isSpecialGuard = (defMoveKey === 'A+I' && guardChiCost > 0) || defMove.name === 'Windmill Guard' || defMove.name === 'Cutter Blade Block' || defMove.isSpecialGuard;
+    // CHECK IF GUARD IS A DEDICATED 100% BLOCK SPECIAL GUARD OR MATCHING COUNTER
+    const isSpecialGuard = (defMoveKey === 'A+I' && guardChiCost > 0) || defMove.name === 'Windmill Guard' || defMove.name === 'Cutter Blade Block' || defMove.isSpecialGuard === true;
 
     if (isSpecialGuard) {
       isMatchingGuard = true;
