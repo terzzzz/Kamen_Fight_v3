@@ -1070,4 +1070,4 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
   let finalDmg = (isGlancing && calculatedDmg > 0) ? Math.max(1, Math.floor(calculatedDmg * 0.20)) : Math.floor(calculatedDmg);
 
   return { isOffensive: true, hitLanded: true, isGlancing: isGlancing, guardSuccess: guardSuccess, isMatchingGuard: isMatchingGuard, chiGained: chiGained, finalDmg: finalDmg };
-}
+} 
