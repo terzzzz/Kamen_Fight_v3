@@ -693,6 +693,12 @@ async function executeTurnResolutionPhase() {
         } else if (result.isGlancing) {
           await playCenterVideo(defKey1, 'dodge.mp4', 'EVADED!');
           defender1.lp = Math.max(0, defender1.lp - result.finalDmg);
+
+          // D-SKILL CHI GAIN GATED STRICTLY BY HIT LANDED
+          if (key1.startsWith('D') && (move1.chiCost || 0) <= 0) {
+            const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
+            attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain);
+          }
           updateHUD();
 
           triggerStaggeredPopups(defKey1, [
@@ -708,6 +714,12 @@ async function executeTurnResolutionPhase() {
           await playCenterVideo(defKey1, hitVid, 'TAKING DAMAGE');
 
           defender1.lp = Math.max(0, defender1.lp - result.finalDmg);
+
+          // D-SKILL CHI GAIN GATED STRICTLY BY HIT LANDED
+          if (key1.startsWith('D') && (move1.chiCost || 0) <= 0) {
+            const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
+            attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain);
+          }
           updateHUD();
 
           triggerStaggeredPopups(defKey1, [
@@ -718,12 +730,6 @@ async function executeTurnResolutionPhase() {
         }
       }
     }
-
-    if (key1.startsWith('D')) {
-      const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
-      attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain);
-    }
-    updateHUD();
   }
 
   // STEP 2 EXECUTION (CANCELED IF ATTACKER IS FAINTED OR INTERRUPTED)
@@ -785,6 +791,12 @@ async function executeTurnResolutionPhase() {
       } else if (result.isGlancing) {
         await playCenterVideo(defKey2, 'dodge.mp4', 'EVADED!');
         defender2.lp = Math.max(0, defender2.lp - result.finalDmg);
+
+        // D-SKILL CHI GAIN GATED STRICTLY BY HIT LANDED
+        if (key2.startsWith('D') && (move2.chiCost || 0) <= 0) {
+          const chiGain = (key2 === 'D+J' || key2 === 'D+K') ? 2 : 3;
+          attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain);
+        }
         updateHUD();
 
         triggerStaggeredPopups(defKey2, [
@@ -798,6 +810,12 @@ async function executeTurnResolutionPhase() {
         await playCenterVideo(defKey2, hitVid, 'TAKING DAMAGE');
 
         defender2.lp = Math.max(0, defender2.lp - result.finalDmg);
+
+        // D-SKILL CHI GAIN GATED STRICTLY BY HIT LANDED
+        if (key2.startsWith('D') && (move2.chiCost || 0) <= 0) {
+          const chiGain = (key2 === 'D+J' || key2 === 'D+K') ? 2 : 3;
+          attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain);
+        }
         updateHUD();
 
         triggerStaggeredPopups(defKey2, [
@@ -807,12 +825,6 @@ async function executeTurnResolutionPhase() {
         await applyFaintBuildUp(defender2, defKey2, getFaintDamageForMove(move2));
       }
     }
-
-    if (key2.startsWith('D')) {
-      const chiGain = (key2 === 'D+J' || key2 === 'D+K') ? 2 : 3;
-      attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain);
-    }
-    updateHUD();
   } else if (move2.type === 'DEFENSE') {
     let isOpponentOffensive = !!(move1 && rules.OFFENSIVE_TYPES.includes(move1.type?.toUpperCase()));
     if (!isOpponentOffensive && (move2.chiCost || 0) === 0) {
@@ -978,7 +990,11 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
     let defenderChargeFactor = Math.sqrt(0.5 + (0.5 * defenderChargeRatio));
     let effectiveGuardChance = 70 * defenderChargeFactor;
 
-    if (defMoveKey === 'A+I' || defMove.name === 'Windmill Guard') {
+    // FIX: SPECIAL/FULL BLOCK GUARDS COST CHI OR HAVE SPECIFIC NAMES.
+    // 0-COST GUARDS (E.G. A+I FOR RIDERMAN/STANDARD RIDERS) ACT AS MATCHING COUNTERS.
+    const isSpecialGuard = (defMoveKey === 'A+I' && guardChiCost > 0) || defMove.name === 'Windmill Guard' || defMove.name === 'Cutter Blade Block' || defMove.isSpecialGuard;
+
+    if (isSpecialGuard) {
       isMatchingGuard = true;
       if (!atkMove.unblockable && Math.random() * 100 < effectiveGuardChance) {
         guardSuccess = true;
@@ -989,7 +1005,7 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
       if (Math.random() * 100 < effectiveGuardChance) {
         guardSuccess = true;
         damageRatio = 0.30;
-        chiGained = 2;
+        chiGained = 2; // +2 CHI COUNTER REWARD
       } else {
         guardSuccess = false;
         damageRatio = 1.0;
@@ -1019,6 +1035,12 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
     let accuracyDiscount = isDOrS ? chargeFactor : 1.0;
 
     let attackerHitBonus = (attacker.id === 'nigo' && attacker.airborneTicks > 0) ? 15 : 0;
+
+    // APPLY ARM CALIBRATION ACCURACY BUFF IF ACTIVE
+    if (attacker.activeBuffs && attacker.activeBuffs.some(b => b.id === 'arm_calibration')) {
+      attackerHitBonus += 15;
+    }
+
     let rawHitRate = (baseHitChance * accuracyDiscount) + attackerHitBonus;
 
     let baseEvasionPct = (defender && defender.evasionRate !== undefined) ? defender.evasionRate : 0.0;
@@ -1070,4 +1092,4 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
   let finalDmg = (isGlancing && calculatedDmg > 0) ? Math.max(1, Math.floor(calculatedDmg * 0.20)) : Math.floor(calculatedDmg);
 
   return { isOffensive: true, hitLanded: true, isGlancing: isGlancing, guardSuccess: guardSuccess, isMatchingGuard: isMatchingGuard, chiGained: chiGained, finalDmg: finalDmg };
-} 
+}
