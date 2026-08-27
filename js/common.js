@@ -23,9 +23,6 @@ window.GAME_CONFIG = {
   HARD_CPU_HP_MULTIPLIER: 1.30
 };
 
-/**
- * Common Helper: Retrieve Opponent Move Data (Works for CPU and Human)
- */
 function getOpponentMovesData(opponentPlayer) {
   if (typeof gameState !== 'undefined') {
     if (opponentPlayer === gameState.p1 && gameState.p1Moves) return gameState.p1Moves;
@@ -34,9 +31,6 @@ function getOpponentMovesData(opponentPlayer) {
   return typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
 }
 
-/**
- * Common Helper: Calculate Match Timing Metrics
- */
 function getMatchTimingConfig() {
   const matchCfg = (typeof gameState !== 'undefined' && gameState.matchConfig) ? gameState.matchConfig : {};
   const sysCfg = (typeof GAME_CONFIG !== 'undefined') ? GAME_CONFIG : (window.GAME_CONFIG || {});
@@ -61,22 +55,19 @@ function getMatchTimingConfig() {
 }
 
 /**
- * Rider AI Profiles Config
- * Define unique weights and preferences per rider ID.
+ * Balanced AI Profiles: Rebalanced W_CHI so damage output & KOs take priority
  */
 window.RIDER_AI_PROFILES = {
   ichigo: {
-    weights: { W_LP: 1.0, W_CHI: 45.0, W_FAINT: 3.5 },
+    weights: { W_LP: 1.0, W_CHI: 8.0, W_FAINT: 2.0 },
     dChargeRange: [88, 95]
   },
   nigo: {
-    weights: { W_LP: 1.2, W_CHI: 40.0, W_FAINT: 2.5 },
+    weights: { W_LP: 1.4, W_CHI: 6.0, W_FAINT: 1.5 },
     dChargeRange: [85, 92]
   },
   v3: {
-    weights: { W_LP: 1.0, W_CHI: 50.0, W_FAINT: 4.0 },
+    weights: { W_LP: 1.1, W_CHI: 10.0, W_FAINT: 2.5 },
     dChargeRange: [85, 95]
   }
-  // Adding Rider #4 through #16 is as simple as adding new key-value entries here!
 };
-
