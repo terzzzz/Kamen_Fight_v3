@@ -303,86 +303,49 @@ function updateSelectionUI() {
   }
 }
 
-async function handleSimulateMatches() {
-  if (typeof runBatchSimulation !== 'function') {
-    alert('Simulation engine (js/simulator.js) is not loaded!');
-    return;
-  }
-
-  const p1Rider = AVAILABLE_RIDERS[vsSelectionState.p1Index] || AVAILABLE_RIDERS[0];
-  const p2Rider = AVAILABLE_RIDERS[vsSelectionState.p2Index] || AVAILABLE_RIDERS[0];
-
-  const countSelect = document.getElementById('sim-count-select');
-  const matchCount = countSelect ? parseInt(countSelect.value, 10) : 20;
-
-  // Read both difficulties independently
-  const p1Diff = vsSelectionState.p1Difficulty || 'normal';
-  const p2Diff = vsSelectionState.p2Difficulty || 'normal';
-
-  const resultsBody = document.getElementById('sim-results-body');
-  const modal = document.getElementById('sim-modal');
-
-  if (resultsBody) {
-    resultsBody.innerHTML = `<p class="sim-loading">SIMULATING ${matchCount} MATCHES... PLEASE WAIT...</p>`;
-  }
-  if (modal) modal.hidden = false;
-
-  setTimeout(async () => {
-    try {
-      const res = await runBatchSimulation(p1Rider, p2Rider, matchCount, p1Diff, p2Diff);
-
-      if (resultsBody) {
-        const overallWinner = res.p1Wins > res.p2Wins ? res.p1Name : (res.p2Wins > res.p1Wins ? res.p2Name : 'TIE MATCH');
-
-        resultsBody.innerHTML = `
-          <div class="sim-summary-header">
-            <p class="sim-matchup-title"><strong>${res.p1Name} (${p1Diff.toUpperCase()})</strong> VS <strong>${res.p2Name} (${p2Diff.toUpperCase()})</strong></p>
-            <p class="sim-winner-announce">OVERALL WINNER: <span class="highlight-winner">${overallWinner.toUpperCase()}</span></p>
-          </div>
-          <table class="sim-table" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-            <thead>
-              <tr style="border-bottom: 1px solid #00ffcc;">
-                <th style="padding: 8px; text-align: left;">STATISTIC</th>
-                <th style="padding: 8px;">${res.p1Name.toUpperCase()}</th>
-                <th style="padding: 8px;">${res.p2Name.toUpperCase()}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="padding: 6px; text-align: left;">Victories (Win Rate)</td>
-                <td style="padding: 6px;"><strong>${res.p1Wins}</strong> (${res.p1WinRate}%)</td>
-                <td style="padding: 6px;"><strong>${res.p2Wins}</strong> (${res.p2WinRate}%)</td>
-              </tr>
-              <tr>
-                <td style="padding: 6px; text-align: left;">Avg. LP Remaining</td>
-                <td style="padding: 6px;">${res.p1AvgLpLeft} LP</td>
-                <td style="padding: 6px;">${res.p2AvgLpLeft} LP</td>
-              </tr>
-              <tr>
-                <td style="padding: 6px; text-align: left;">Avg. Chi Remaining</td>
-                <td style="padding: 6px;">${res.p1AvgChiLeft} / 16 Chi</td>
-                <td style="padding: 6px;">${res.p2AvgChiLeft} / 16 Chi</td>
-              </tr>
-              <tr>
-                <td style="padding: 6px; text-align: left;">Avg. Match Duration</td>
-                <td colspan="2" style="padding: 6px;">${res.avgRounds} Rounds</td>
-              </tr>
-              <tr>
-                <td style="padding: 6px; text-align: left;">Draws / Double KO</td>
-                <td colspan="2" style="padding: 6px;">${res.draws}</td>
-              </tr>
-            </tbody>
-          </table>
-        `;
-      }
-    } catch (err) {
-      console.error("Simulation Error:", err);
-      if (resultsBody) {
-        resultsBody.innerHTML = `<p style="color: #ff3366;">ERROR: ${err.message}</p>`;
-      }
-    }
-  }, 50);
-}
+// Replace the innerHTML template string inside handleSimulateMatches in js/vs_select.js:
+resultsBody.innerHTML = `
+  <div class="sim-summary-header">
+    <p class="sim-matchup-title"><strong>${res.p1Name} (${p1Diff.toUpperCase()})</strong> VS <strong>${res.p2Name} (${p2Diff.toUpperCase()})</strong></p>
+    <p class="sim-winner-announce">OVERALL WINNER: <span class="highlight-winner" style="color: #00ffcc;">${overallWinner.toUpperCase()}</span></p>
+  </div>
+  <div class="sim-table-wrapper">
+    <table class="sim-table">
+      <thead>
+        <tr style="border-bottom: 1px solid #00ffcc;">
+          <th>STATISTIC</th>
+          <th>${res.p1Name.toUpperCase()}</th>
+          <th>${res.p2Name.toUpperCase()}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Victories (Win Rate)</td>
+          <td><strong>${res.p1Wins}</strong> (${res.p1WinRate}%)</td>
+          <td><strong>${res.p2Wins}</strong> (${res.p2WinRate}%)</td>
+        </tr>
+        <tr>
+          <td>Avg. LP Remaining</td>
+          <td>${res.p1AvgLpLeft} LP</td>
+          <td>${res.p2AvgLpLeft} LP</td>
+        </tr>
+        <tr>
+          <td>Avg. Chi Remaining</td>
+          <td>${res.p1AvgChiLeft} / 16 Chi</td>
+          <td>${res.p2AvgChiLeft} / 16 Chi</td>
+        </tr>
+        <tr>
+          <td>Avg. Match Duration</td>
+          <td colspan="2">${res.avgRounds} Rounds</td>
+        </tr>
+        <tr>
+          <td>Draws / Double KO</td>
+          <td colspan="2">${res.draws}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+`;
 
 function validateAndStartMatch() {
   stopSelectionBGM();
