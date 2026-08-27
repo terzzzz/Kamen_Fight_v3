@@ -30,13 +30,25 @@ function selectIchigoCPUMove(cpuPlayer, opponentPlayer, movesData, difficulty = 
 
   if (affordableKeys.length === 0) return 'D+J';
 
+  // 1. FAINTED OPPONENT DIRECT PUNISH OVERRIDE
+  if (opponentPlayer.isFainted) {
+    let bestPunishKey = 'D+J';
+    let maxDmg = -1;
+    affordableKeys.forEach(k => {
+      const dmg = movesData[k] ? (movesData[k].baseDamage || 0) : 0;
+      if (dmg > maxDmg) { maxDmg = dmg; bestPunishKey = k; }
+    });
+    setIchigoChargeTarget(cpuPlayer, bestPunishKey, maxAchievableCharge, difficulty);
+    return bestPunishKey;
+  }
+
   let selectedMoveKey = 'D+J';
 
-  // 1. EASY DIFFICULTY
+  // 2. EASY DIFFICULTY: RANDOM CHOICE
   if (difficulty === 'easy') {
     selectedMoveKey = affordableKeys[Math.floor(Math.random() * affordableKeys.length)];
   } 
-  // 2. HARD & NORMAL DIFFICULTY
+  // 3. HARD & NORMAL DIFFICULTY
   else {
     const oppMovesData = getOpponentMovesData(opponentPlayer);
     const opponentMoveKey = gameState.p1SelectedMoveKey || (gameState.input ? gameState.input.selectedMoveKey : null);
@@ -71,11 +83,24 @@ function selectIchigoCPUMove(cpuPlayer, opponentPlayer, movesData, difficulty = 
       }
     }
 
+    // FORESEE LOOKAHEAD SEARCH
     if (!guardChosen) {
       if (window.ForeseeEngine) {
+        // Exclude 0-damage setup moves in Normal mode so turn 1 isn't wasted
+        let searchMoves = movesData;
+        if (difficulty === 'normal') {
+          searchMoves = {};
+          Object.keys(movesData).forEach(k => {
+            if (!k.startsWith('W') || (movesData[k].baseDamage || 0) > 0) {
+              searchMoves[k] = movesData[k];
+            }
+          });
+        }
+
         selectedMoveKey = window.ForeseeEngine.run3TurnForeseeSearch(
-          cpuPlayer, opponentPlayer, movesData, oppMovesData, {
+          cpuPlayer, opponentPlayer, searchMoves, oppMovesData, {
             maxDepth: difficulty === 'hard' ? 3 : 2,
+            useExpectimax: difficulty === 'normal',
             characterWeights: { W_LP: 1.0, W_CHI: 45.0, W_FAINT: 3.5 },
             isOpponentLocked: isOpponentLocked,
             lockedOpponentMoveKey: opponentMoveKey
