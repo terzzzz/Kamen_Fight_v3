@@ -67,6 +67,9 @@
       if (idx === 1 && (step.atk.isFainted || turn1Interrupted)) return;
       if (step.move.type === 'IDLE' || step.key === 'DO_NOTHING') return;
 
+      // Track if target was already fainted/stunned before hit
+      const wasTargetFainted = step.def.isFainted || step.def.faintMeter >= rules.FAINT_THRESHOLD || step.def.cashedInFaint;
+
       if (step.move.type === 'DEFENSE') {
         const penalty = (step.move.chiCost || 0) > 0 ? rules.FAINT_PENALTY_CHI_GUARD : rules.FAINT_PENALTY_STANDARD_GUARD;
         step.atk.faintMeter = Math.min(rules.FAINT_THRESHOLD, step.atk.faintMeter + penalty);
@@ -88,6 +91,11 @@
       let expectedFaint = Math.floor((step.move.baseFaintDamage || 25) * hitRate);
 
       step.def.lp = Math.max(0, step.def.lp - expectedDmg);
+
+      // CASH-IN FAINT FIX: Tag that faint value was converted into LP damage
+      if (wasTargetFainted && expectedDmg > 0) {
+        step.def.cashedInFaint = true;
+      }
 
       if (!isGuarded) {
         step.def.faintMeter = Math.min(rules.FAINT_THRESHOLD, step.def.faintMeter + expectedFaint);
@@ -120,30 +128,60 @@
   }
 
   /**
-   * Evaluates leaf states using weighted LP, Chi, Faint, and threshold step-bonuses.
+   * Dynamic Non-Linear Evaluation Function
+   * Adjusts resource values based on LP survival thresholds & preserves cashed-in faint value.
    */
   function evaluateLeafState(selfState, oppState, characterWeights = {}) {
+    // 1. Terminal KO Bounds
     if (oppState.lp <= 0) return 10000;
     if (selfState.lp <= 0) return -10000;
 
-    const W_LP = characterWeights.W_LP || 1.0;
-    const W_CHI = characterWeights.W_CHI || 45.0;
-    const W_FAINT = characterWeights.W_FAINT || 3.0;
+    const selfMaxLp = selfState.maxLp || 1850;
+    const selfHpRatio = selfState.lp / selfMaxLp;
 
+    // 2. Dynamic Survival Multipliers
+    // As LP drops below 30%, LP protection urgency scales up to 3x
+    let lpUrgencyMultiplier = 1.0;
+    if (selfHpRatio < 0.30) {
+      lpUrgencyMultiplier = 1.0 + ((0.30 - selfHpRatio) / 0.30) * 2.0;
+    }
+
+    // Future resource values (Chi & Faint) drop as HP enters danger zone
+    let resourceDiscount = Math.min(1.0, Math.max(0.15, selfHpRatio / 0.35));
+
+    // 3. Dynamic Weight Adjustments
+    const W_LP = (characterWeights.W_LP || 1.0) * lpUrgencyMultiplier;
+    const W_CHI = (characterWeights.W_CHI || 45.0) * resourceDiscount;
+    const W_FAINT = (characterWeights.W_FAINT || 3.0) * resourceDiscount;
+
+    // 4. Chi Diminishing Returns (Saturation Cap at 11 Chi)
+    let selfEffectiveChi = selfState.chi > 11 ? 11 + (selfState.chi - 11) * 0.25 : selfState.chi;
+    let oppEffectiveChi = oppState.chi > 11 ? 11 + (oppState.chi - 11) * 0.25 : oppState.chi;
+
+    // 5. Base Weighted Score
     let score = ((selfState.lp - oppState.lp) * W_LP) +
-                ((Math.min(16, selfState.chi) - Math.min(16, oppState.chi)) * W_CHI) +
-                ((oppState.faintMeter - selfState.faintMeter) * W_FAINT);
+                ((selfEffectiveChi - oppEffectiveChi) * W_CHI);
 
-    // Stun Threshold Step-Bonuses
-    if (oppState.faintMeter >= 100) score += 300;
-    if (selfState.faintMeter >= 100) score -= 300;
+    // 6. Faint & Stun Evaluation with Cash-In Preservation
+    let oppFaintVal = (oppState.isFainted || oppState.faintMeter >= 100 || oppState.cashedInFaint) ? 100 : oppState.faintMeter;
+    let selfFaintVal = (selfState.isFainted || selfState.faintMeter >= 100 || selfState.cashedInFaint) ? 100 : selfState.faintMeter;
 
-    // Character Buff Synergies
+    score += (oppFaintVal - selfFaintVal) * W_FAINT;
+
+    // Step-Bonuses for Stun States
+    if (oppState.isFainted || oppState.faintMeter >= 100 || oppState.cashedInFaint) {
+      score += 300 * resourceDiscount;
+    }
+    if (selfState.isFainted || selfState.faintMeter >= 100 || selfState.cashedInFaint) {
+      score -= 300 * lpUrgencyMultiplier;
+    }
+
+    // Buff Synergies (Discounted if near death)
     if (selfState.activeBuffs && selfState.activeBuffs.some(b => b.id === 'power_focus' || b.id === 'focus')) {
-      score += 80;
+      score += 80 * resourceDiscount;
     }
     if (selfState.activeBuffs && selfState.activeBuffs.some(b => b.id === 'double_typhoon_speed' || b.id === 'red_lamp_boost')) {
-      score += 90;
+      score += 90 * resourceDiscount;
     }
 
     return score;
