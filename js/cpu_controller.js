@@ -4,102 +4,59 @@
  * Replaces all individual rider CPU files.
  */
 
+/**
+ * Universal CPU Move & Charge Controller
+ * Path: js/cpu_controller.js
+ */
+
 function selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty = 'normal') {
   if (!availableMoves || Object.keys(availableMoves).length === 0) return 'D+J';
 
-  const moveKeys = Object.keys(availableMoves);
-  const oppMovesData = getOpponentMovesData(opponentPlayer);
-  const isOpponentLocked = !!(gameState.input && gameState.input.isConfirmed);
-  const oppMoveKey = gameState.input ? gameState.input.selectedMoveKey : null;
+  const riderId = cpuPlayer.id || 'ichigo';
+  const profile = (window.RIDER_AI_PROFILES && window.RIDER_AI_PROFILES[riderId])
+    ? window.RIDER_AI_PROFILES[riderId]
+    : { weights: { W_LP: 1.0, W_CHI: 8.0, W_FAINT: 2.0 }, dChargeRange: [85, 95] };
 
-  // 1. LOAD RIDER AI PROFILE (FALLBACK TO DEFAULT WEIGHTS)
-  const profiles = window.RIDER_AI_PROFILES || {};
-  const profile = profiles[cpuPlayer.id] || {
-    weights: { W_LP: 1.0, W_CHI: 45.0, W_FAINT: 3.0 },
-    dChargeRange: [85, 95]
-  };
+  const keys = Object.keys(availableMoves);
 
-  const timing = getMatchTimingConfig();
-  let cpuThinkingDelay = 0.4 + (Math.random() * 0.4);
-  let humanLockedLate = (typeof gameState !== 'undefined' && gameState.input && gameState.input.isConfirmed &&
-    (gameState.input.lockInTime > timing.lateThreshold || gameState.timeExtended));
-  let bonusExtensionTime = humanLockedLate ? timing.extensionBonus : 0.0;
-  let availableChargeTime = Math.max(0, (timing.baseRoundWindow + bonusExtensionTime) - cpuThinkingDelay);
-  let maxAchievableCharge = Math.min(100, Math.floor((availableChargeTime / timing.chargeTimeRequired) * 100));
-
-  // 2. UNIVERSAL FAINT PUNISH OVERRIDE
-  if (opponentPlayer.isFainted) {
-    let bestPunishKey = 'D+J';
-    let maxDmg = -1;
-    moveKeys.forEach(k => {
-      const dmg = availableMoves[k] ? (availableMoves[k].baseDamage || 0) : 0;
-      if (dmg > maxDmg) { maxDmg = dmg; bestPunishKey = k; }
-    });
-    setUniversalChargeTarget(cpuPlayer, bestPunishKey, maxAchievableCharge, difficulty, profile);
-    return bestPunishKey;
-  }
-
-  // 3. EASY DIFFICULTY: RANDOM SELECTION
+  // EASY MODE: 40% Random Blunder Rate & Lower Charge Target (65% - 80%)
   if (difficulty === 'easy') {
-    const key = moveKeys[Math.floor(Math.random() * moveKeys.length)];
-    setUniversalChargeTarget(cpuPlayer, key, maxAchievableCharge, difficulty, profile);
-    return key;
+    cpuPlayer.activeChargePercent = Math.floor(Math.random() * 16) + 65;
+    if (Math.random() < 0.40) {
+      return keys[Math.floor(Math.random() * keys.length)];
+    }
+  } 
+  // NORMAL MODE: Optimal Charge Target (85% - 95%)
+  else if (difficulty === 'normal') {
+    cpuPlayer.activeChargePercent = Math.floor(Math.random() * 11) + 85;
+  } 
+  // HARD MODE: Peak Charge Target (92% - 100%)
+  else if (difficulty === 'hard') {
+    cpuPlayer.activeChargePercent = Math.floor(Math.random() * 9) + 92;
   }
 
-  // 4. HARD DIFFICULTY: REACTIVE GUARDING VS LOCKED ATTACKS
-  let selectedMoveKey = 'D+J';
-  let guardChosen = false;
-
-  if (difficulty === 'hard' && oppMoveKey && !oppMoveKey.startsWith('A+') && oppMoveKey !== 'DO_NOTHING') {
-    const rules = window.COMBAT_RULES || { FAINT_THRESHOLD: 100, FAINT_PENALTY_CHI_GUARD: 15, FAINT_PENALTY_STANDARD_GUARD: 25 };
-    const oppButton = oppMoveKey.split('+')[1];
-    const isOpponentSpecial = oppMoveKey.startsWith('S');
-    const cpuWindmillFaintRisk = (cpuPlayer.faintMeter || 0) >= (rules.FAINT_THRESHOLD - rules.FAINT_PENALTY_CHI_GUARD);
-    const cpuStandardGuardRisk = (cpuPlayer.faintMeter || 0) >= (rules.FAINT_THRESHOLD - rules.FAINT_PENALTY_STANDARD_GUARD);
-
-    if (isOpponentSpecial) {
-      const windmillMove = availableMoves['A+I'];
-      if (windmillMove && cpuPlayer.chi >= (windmillMove.chiCost || 0) && !cpuWindmillFaintRisk && Math.random() < 0.65) {
-        selectedMoveKey = 'A+I';
-        guardChosen = true;
-      } else if (oppButton && availableMoves[`A+${oppButton}`] && !cpuStandardGuardRisk && Math.random() < 0.50) {
-        selectedMoveKey = `A+${oppButton}`;
-        guardChosen = true;
-      }
+  // IMMEDIATE LETHAL CHECK: If any move KOs opponent this turn, execute immediately
+  for (let key of keys) {
+    const move = availableMoves[key];
+    if (move && move.baseDamage && move.baseDamage >= opponentPlayer.lp) {
+      return key;
     }
   }
 
-  // 5. FORESEE ENGINE LOOKAHEAD SEARCH
-  if (!guardChosen) {
-    if (window.ForeseeEngine) {
-      let searchMoves = availableMoves;
-
-      // Filter out 0-damage setup moves in Normal mode
-      if (difficulty === 'normal') {
-        searchMoves = {};
-        Object.keys(availableMoves).forEach(k => {
-          if (!k.startsWith('W') || (availableMoves[k].baseDamage || 0) > 0) {
-            searchMoves[k] = availableMoves[k];
-          }
-        });
-      }
-
-      selectedMoveKey = window.ForeseeEngine.run3TurnForeseeSearch(
-        cpuPlayer, opponentPlayer, searchMoves, oppMovesData, {
-          maxDepth: difficulty === 'hard' ? 3 : 2,
-          useExpectimax: difficulty === 'normal',
-          characterWeights: profile.weights,
-          isOpponentLocked: isOpponentLocked,
-          lockedOpponentMoveKey: oppMoveKey
-        }
-      );
-    } else {
-      selectedMoveKey = moveKeys[Math.floor(Math.random() * moveKeys.length)];
+  // FORESEE ENGINE LOOKAHEAD DISPATCH
+  if (window.ForeseeEngine && typeof window.ForeseeEngine.getBestMove === 'function') {
+    const depth = difficulty === 'hard' ? 3 : (difficulty === 'easy' ? 1 : 2);
+    const bestMove = window.ForeseeEngine.getBestMove(cpuPlayer, opponentPlayer, availableMoves, profile, depth);
+    if (bestMove && availableMoves[bestMove]) {
+      return bestMove;
     }
   }
 
-  setUniversalChargeTarget(cpuPlayer, selectedMoveKey, maxAchievableCharge, difficulty, profile);
-  return selectedMoveKey;
+  return keys[Math.floor(Math.random() * keys.length)] || 'D+J';
+}
+
+if (typeof window !== 'undefined') {
+  window.selectCPUMove = selectCPUMove;
 }
 
 /**
