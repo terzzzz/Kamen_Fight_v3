@@ -1,5 +1,5 @@
 /**
- * In-Browser Headless Match Simulator (Full Mechanics Port)
+ * In-Browser Headless Match Simulator
  * Path: js/simulator.js
  */
 
@@ -34,194 +34,6 @@ function getMoveRangePrioritySim(move) {
   return 1;
 }
 
-function getFaintDamageForMoveSim(move) {
-  if (move && typeof move.baseFaintDamage === 'number') {
-    return move.baseFaintDamage;
-  }
-  return (window.COMBAT_RULES || {}).HIT_BUILDUP || 25;
-}
-
-function applyBuffSim(player, buffId, label, buffType, durationRounds, roundCounter) {
-  if (!player.activeBuffs) player.activeBuffs = [];
-  player.activeBuffs = player.activeBuffs.filter(b => b.id !== buffId);
-  player.activeBuffs.push({
-    id: buffId,
-    label: label,
-    type: buffType,
-    roundsLeft: durationRounds,
-    appliedRound: roundCounter
-  });
-}
-
-function processRoundBuffsSim(player, roundCounter) {
-  if (!player.activeBuffs) return;
-  player.activeBuffs.forEach(b => {
-    if (b.appliedRound !== roundCounter) {
-      b.roundsLeft--;
-    }
-  });
-  player.activeBuffs = player.activeBuffs.filter(b => b.roundsLeft > 0);
-}
-
-function handleAirborneStateSim(player, moveKey, move, roundCounter) {
-  if (move && move.grantsAirborne) {
-    player.airborneTicks = move.grantsAirborne;
-    player.airborneAppliedRound = roundCounter;
-    player.airborneChargePercent = player.activeChargePercent !== undefined ? player.activeChargePercent : 100;
-  } else if (player.airborneTicks > 0) {
-    if (move && move.forcesLanding) {
-      player.airborneTicks = 0;
-    } else if (player.airborneAppliedRound !== roundCounter) {
-      player.airborneTicks--;
-    }
-  }
-}
-
-function applyFaintBuildUpSim(player, customAmount = null) {
-  if (!player.isFainted) {
-    const rules = window.COMBAT_RULES || { FAINT_THRESHOLD: 100, HIT_BUILDUP: 25 };
-    player.tookCleanHitThisRound = true;
-    const amount = customAmount !== null ? customAmount : rules.HIT_BUILDUP;
-    player.faintMeter = Math.min(rules.FAINT_THRESHOLD, player.faintMeter + amount);
-
-    if (player.faintMeter >= rules.FAINT_THRESHOLD) {
-      player.isFainted = true;
-      player.willBeFaintedNextRound = true;
-    }
-  }
-}
-
-function resolveAttackSim(attacker, defender, atkMove, atkMoveKey, defMove, defMoveKey) {
-  const rules = window.COMBAT_RULES || {
-    FAINT_THRESHOLD: 100,
-    FAINT_PENALTY_CHI_GUARD: 15,
-    FAINT_PENALTY_STANDARD_GUARD: 25,
-    OFFENSIVE_TYPES: ['MELEE', 'PROJECTILE', 'SPECIAL', 'FINISHER', 'PHYSICAL']
-  };
-
-  const isOffensive = !!(atkMove && rules.OFFENSIVE_TYPES.includes(atkMove.type?.toUpperCase()));
-
-  if (!isOffensive) {
-    return { isOffensive: false, hitLanded: false, isGlancing: false, guardSuccess: false, isMatchingGuard: false, chiGained: 0, finalDmg: 0 };
-  }
-
-  const chargePercent = attacker.activeChargePercent !== undefined ? attacker.activeChargePercent : 100;
-  const chargeRatio = Math.min(1.0, Math.max(0.0, chargePercent / 100));
-  const chargeFactor = Math.sqrt(0.5 + (0.5 * chargeRatio));
-
-  let isGuarding = defMove.type === 'DEFENSE' && !defender.isFainted;
-  let guardSuccess = false;
-  let isMatchingGuard = false;
-  let chiGained = 0;
-  let damageRatio = 1.0;
-
-  if (isGuarding) {
-    const atkButton = atkMoveKey ? atkMoveKey.split('+')[1] : null;
-    const guardChiCost = defMove.chiCost || 0;
-    const faintPenalty = guardChiCost > 0 ? rules.FAINT_PENALTY_CHI_GUARD : rules.FAINT_PENALTY_STANDARD_GUARD;
-
-    defender.tookCleanHitThisRound = true;
-    defender.faintMeter = Math.min(rules.FAINT_THRESHOLD, defender.faintMeter + faintPenalty);
-    if (defender.faintMeter >= rules.FAINT_THRESHOLD) {
-      defender.isFainted = true;
-      defender.willBeFaintedNextRound = true;
-    }
-
-    let defenderChargeRatio = Math.min(1.0, Math.max(0.0, (defender.activeChargePercent !== undefined ? defender.activeChargePercent : 100) / 100));
-    let defenderChargeFactor = Math.sqrt(0.5 + (0.5 * defenderChargeRatio));
-    let effectiveGuardChance = 70 * defenderChargeFactor;
-
-    if (defMoveKey === 'A+I' || defMove.name === 'Windmill Guard') {
-      isMatchingGuard = true;
-      if (!atkMove.unblockable && Math.random() * 100 < effectiveGuardChance) {
-        guardSuccess = true;
-        damageRatio = 0.0;
-      }
-    } else if (defMoveKey === `A+${atkButton}`) {
-      isMatchingGuard = true;
-      if (Math.random() * 100 < effectiveGuardChance) {
-        guardSuccess = true;
-        damageRatio = 0.30;
-        chiGained = 2;
-      } else {
-        guardSuccess = false;
-        damageRatio = 1.0;
-      }
-    } else {
-      isMatchingGuard = false;
-      guardSuccess = false;
-      damageRatio = 1.0;
-    }
-  }
-
-  let rolledHit = false;
-  let isGlancing = false;
-
-  if (defender.isFainted) {
-    rolledHit = true;
-    isGlancing = false;
-  } else if (isGuarding) {
-    rolledHit = true;
-  } else if (defMove.type === 'IDLE' || defMoveKey === 'DO_NOTHING' || defMove.name === 'Do Nothing') {
-    rolledHit = true;
-  } else {
-    let baseHitChance = atkMove.hitChance || 80;
-    let isDOrS = atkMoveKey.startsWith('D') || atkMoveKey.startsWith('S');
-    let accuracyDiscount = isDOrS ? chargeFactor : 1.0;
-    let attackerHitBonus = (attacker.id === 'nigo' && attacker.airborneTicks > 0) ? 15 : 0;
-    let rawHitRate = (baseHitChance * accuracyDiscount) + attackerHitBonus;
-
-    let baseEvasionPct = (defender && defender.evasionRate !== undefined) ? defender.evasionRate : 0.0;
-    if (defender.id === 'ichigo' && defender.airborneTicks > 0) baseEvasionPct += 0.20;
-
-    let instabilityMult = 1.0;
-    if (defender.airborneTicks > 0 && defender.airborneAppliedRound === attacker.roundCounter) {
-      let jumpChargeRatio = Math.min(1.0, Math.max(0.0, (defender.airborneChargePercent !== undefined ? defender.airborneChargePercent : 100) / 100));
-      instabilityMult = 1.8 - (0.8 * jumpChargeRatio);
-    }
-
-    let calculatedHitChance = rawHitRate * (1.0 - baseEvasionPct) * instabilityMult;
-    let effectiveHitChance = Math.max(10, Math.min(100, calculatedHitChance));
-
-    rolledHit = Math.random() * 100 < effectiveHitChance;
-  }
-
-  if (!rolledHit) {
-    return { isOffensive: true, hitLanded: false, isGlancing: false, guardSuccess: false, isMatchingGuard: false, chiGained: 0, finalDmg: 0 };
-  }
-
-  if (!isGuarding && !defender.isFainted) {
-    isGlancing = Math.random() * 100 < (atkMove.scratchRate || 20);
-  }
-
-  if (defender.activeBuffs && defender.activeBuffs.some(b => b.id === 'red_shutter')) {
-    damageRatio *= 0.85;
-  }
-
-  let isDOrS = atkMoveKey.startsWith('D') || atkMoveKey.startsWith('S');
-  let typhoonMultiplier = (isDOrS && attacker.activeBuffs && attacker.activeBuffs.some(b => b.id === 'typhoon' || b.id === 'typhoon_speed' || b.id === 'double_typhoon')) ? 1.25 : 1.0;
-
-  let focusMultiplier = 1.0;
-  if (attacker.activeBuffs) {
-    if (atkMoveKey.startsWith('S') && attacker.activeBuffs.some(b => b.id === 'focus' || b.id === 'v3_focus' || b.id === 'red_lamp_boost')) {
-      focusMultiplier = 1.20;
-    } else if (atkMoveKey.startsWith('D') && attacker.activeBuffs.some(b => b.id === 'power_focus')) {
-      focusMultiplier = 1.30;
-    }
-  }
-
-  let jumpAtkMultiplier = attacker.airborneTicks > 0 ? 1.15 : 1.0;
-  let baseDamage = atkMove.baseDamage || 0;
-  let calculatedDmg = baseDamage * chargeFactor * typhoonMultiplier * focusMultiplier * jumpAtkMultiplier * damageRatio;
-
-  let finalDmg = (isGlancing && calculatedDmg > 0) ? Math.max(1, Math.floor(calculatedDmg * 0.20)) : Math.floor(calculatedDmg);
-
-  return { isOffensive: true, hitLanded: true, isGlancing: isGlancing, guardSuccess: guardSuccess, isMatchingGuard: isMatchingGuard, chiGained: chiGained, finalDmg: finalDmg };
-}
-
-/**
- * Universal Simulation CPU Move Choice Dispatcher
- */
 function selectCPUMoveSim(cpuPlayer, opponentPlayer, movesData, difficulty) {
   if (cpuPlayer.isFainted) return 'DO_NOTHING';
 
@@ -235,7 +47,6 @@ function selectCPUMoveSim(cpuPlayer, opponentPlayer, movesData, difficulty) {
 
   if (Object.keys(availableMoves).length === 0) return 'D+J';
 
-  // DIRECT ROUTING TO CENTRAL CONTROLLER
   if (typeof window.selectCPUMove === 'function') {
     return window.selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
   }
@@ -294,10 +105,7 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
         p1Moves: p1Moves,
         p2Moves: p2Moves,
         roundCounter: 1,
-        matchConfig: { p1Difficulty, p2Difficulty },
-        input: null,
-        p1SelectedMoveKey: null,
-        p2SelectedMoveKey: null
+        matchConfig: { p1Difficulty, p2Difficulty }
       };
 
       let roundCounter = 1;
@@ -308,14 +116,8 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
         p1.roundCounter = roundCounter;
         p2.roundCounter = roundCounter;
 
-        let p1MoveKey, p2MoveKey;
-        if (Math.random() < 0.5) {
-          p1MoveKey = selectCPUMoveSim(p1, p2, p1Moves, p1Difficulty);
-          p2MoveKey = selectCPUMoveSim(p2, p1, p2Moves, p2Difficulty);
-        } else {
-          p2MoveKey = selectCPUMoveSim(p2, p1, p2Moves, p2Difficulty);
-          p1MoveKey = selectCPUMoveSim(p1, p2, p1Moves, p1Difficulty);
-        }
+        let p1MoveKey = selectCPUMoveSim(p1, p2, p1Moves, p1Difficulty);
+        let p2MoveKey = selectCPUMoveSim(p2, p1, p2Moves, p2Difficulty);
 
         const defaultMove = { name: 'Do Nothing', type: 'IDLE', baseDamage: 0, chiCost: 0 };
         const m1 = p1Moves[p1MoveKey] || defaultMove;
@@ -333,13 +135,20 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
         let p1RangePriority = getMoveRangePrioritySim(m1);
         let p2RangePriority = getMoveRangePrioritySim(m2);
 
+        // SPEED PRIORITY MATCHING COMBAT.JS (Range Priority -> Move Type -> Charge Speed)
         if (!p1IsIdle && p2IsIdle) p1GoesFirst = true;
         else if (p1IsIdle && !p2IsIdle) p1GoesFirst = false;
         else if (p1RangePriority > p2RangePriority) p1GoesFirst = true;
         else if (p1RangePriority < p2RangePriority) p1GoesFirst = false;
         else if (p1IsS && p2IsD) p1GoesFirst = true;
         else if (p1IsD && p2IsS) p1GoesFirst = false;
-        else p1GoesFirst = Math.random() < 0.5;
+        else {
+          let p1Elapsed = (p1.activeChargePercent || 100) * 0.025;
+          let p2Elapsed = (p2.activeChargePercent || 100) * 0.025;
+          if (p1Elapsed < p2Elapsed) p1GoesFirst = true;
+          else if (p1Elapsed > p2Elapsed) p1GoesFirst = false;
+          else p1GoesFirst = Math.random() < 0.5;
+        }
 
         let atk1 = p1GoesFirst ? p1 : p2;
         let def1 = p1GoesFirst ? p2 : p1;
@@ -353,111 +162,25 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
 
         let def1WasInterrupted = false;
 
-        // STEP 1 EXECUTION
+        // EXECUTE TURN
         if (move1.type !== 'IDLE' && key1 !== 'DO_NOTHING') {
-          if (move1.buff) applyBuffSim(atk1, move1.buff.id, move1.buff.label, move1.buff.type, move1.buff.duration, roundCounter);
-          handleAirborneStateSim(atk1, key1, move1, roundCounter);
-
-          if (move1.faintRecovery && atk1.faintMeter > 0) {
-            atk1.faintMeter = Math.max(0, atk1.faintMeter - move1.faintRecovery);
-          }
-
           atk1.chi = Math.max(0, atk1.chi - (move1.chiCost || 0));
-
-          if (move1.type === 'DEFENSE') {
-            let isOpponentOffensive = !!(move2 && rules.OFFENSIVE_TYPES.includes(move2.type?.toUpperCase()));
-            if (!isOpponentOffensive && (move1.chiCost || 0) === 0) {
-              applyFaintBuildUpSim(atk1, rules.FAINT_PENALTY_IDLE_GUARD);
-            }
-          } else {
-            let result = resolveAttackSim(atk1, def1, move1, key1, move2, key2);
-
-            if (result.isOffensive) {
-              if (move2.type === 'DEFENSE' && !def1.isFainted) {
-                def1.chi = Math.max(0, def1.chi - (move2.chiCost || 0));
-                if (result.guardSuccess) {
-                  if (result.chiGained > 0 && !def1.isFainted) {
-                    def1.chi = Math.min(def1.maxChi || rules.MAX_CHI, def1.chi + result.chiGained);
-                  }
-                  def1.lp = Math.max(0, def1.lp - result.finalDmg);
-                } else {
-                  def1WasInterrupted = true;
-                  def1.lp = Math.max(0, def1.lp - result.finalDmg);
-                  applyFaintBuildUpSim(def1, getFaintDamageForMoveSim(move1));
-                }
-              } else if (result.hitLanded) {
-                if (result.isGlancing) {
-                  def1.lp = Math.max(0, def1.lp - result.finalDmg);
-                  applyFaintBuildUpSim(def1, 10);
-                } else {
-                  def1WasInterrupted = true;
-                  def1.lp = Math.max(0, def1.lp - result.finalDmg);
-                  applyFaintBuildUpSim(def1, getFaintDamageForMoveSim(move1));
-                }
-              }
-            }
-
-            if (key1.startsWith('D')) {
-              const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
-              atk1.chi = Math.min(rules.MAX_CHI, atk1.chi + chiGain);
-            }
+          if (move1.type !== 'DEFENSE') {
+            let dmg = Math.floor((move1.baseDamage || 0) * Math.sqrt(0.5 + 0.5 * ((atk1.activeChargePercent || 100) / 100)));
+            def1.lp = Math.max(0, def1.lp - dmg);
+            if (dmg > 0) def1WasInterrupted = true;
+            if (key1.startsWith('D')) atk1.chi = Math.min(rules.MAX_CHI, atk1.chi + 2);
           }
         }
 
-        // STEP 2 EXECUTION
-        if (def2.lp > 0 && !atk2.isFainted && !def1WasInterrupted && move2.type !== 'IDLE' && key2 !== 'DO_NOTHING' && move2.type !== 'DEFENSE') {
-          if (move2.buff) applyBuffSim(atk2, move2.buff.id, move2.buff.label, move2.buff.type, move2.buff.duration, roundCounter);
-          handleAirborneStateSim(atk2, key2, move2, roundCounter);
-
-          if (move2.faintRecovery && atk2.faintMeter > 0) {
-            atk2.faintMeter = Math.max(0, atk2.faintMeter - move2.faintRecovery);
-          }
-
+        if (def2.lp > 0 && !atk2.isFainted && !def1WasInterrupted && move2.type !== 'IDLE' && key2 !== 'DO_NOTHING') {
           atk2.chi = Math.max(0, atk2.chi - (move2.chiCost || 0));
-
-          let result = resolveAttackSim(atk2, def2, move2, key2, move1, key1);
-
-          if (result.isOffensive) {
-            if (move1.type === 'DEFENSE' && !def2.isFainted) {
-              if (result.guardSuccess) {
-                if (result.chiGained > 0 && !def2.isFainted) {
-                  def2.chi = Math.min(def2.maxChi || rules.MAX_CHI, def2.chi + result.chiGained);
-                }
-                def2.lp = Math.max(0, def2.lp - result.finalDmg);
-              } else {
-                def2.lp = Math.max(0, def2.lp - result.finalDmg);
-                applyFaintBuildUpSim(def2, getFaintDamageForMoveSim(move2));
-              }
-            } else if (result.hitLanded) {
-              if (result.isGlancing) {
-                def2.lp = Math.max(0, def2.lp - result.finalDmg);
-                applyFaintBuildUpSim(def2, 10);
-              } else {
-                def2.lp = Math.max(0, def2.lp - result.finalDmg);
-                applyFaintBuildUpSim(def2, getFaintDamageForMoveSim(move2));
-              }
-            }
-          }
-
-          if (key2.startsWith('D')) {
-            const chiGain = (key2 === 'D+J' || key2 === 'D+K') ? 2 : 3;
-            atk2.chi = Math.min(rules.MAX_CHI, atk2.chi + chiGain);
+          if (move2.type !== 'DEFENSE') {
+            let dmg = Math.floor((move2.baseDamage || 0) * Math.sqrt(0.5 + 0.5 * ((atk2.activeChargePercent || 100) / 100)));
+            def2.lp = Math.max(0, def2.lp - dmg);
+            if (key2.startsWith('D')) atk2.chi = Math.min(rules.MAX_CHI, atk2.chi + 2);
           }
         }
-
-        processRoundBuffsSim(p1, roundCounter);
-        processRoundBuffsSim(p2, roundCounter);
-
-        [p1, p2].forEach(player => {
-          if (player.willBeFaintedNextRound) {
-            player.isFainted = true;
-            player.faintMeter = 100;
-          } else if (!player.tookCleanHitThisRound && player.faintMeter > 0) {
-            player.faintMeter = Math.max(0, player.faintMeter - rules.ROUND_RECOVERY);
-          }
-          player.tookCleanHitThisRound = false;
-          player.willBeFaintedNextRound = false;
-        });
 
         if (p1.lp <= 0 || p2.lp <= 0) break;
         roundCounter++;
