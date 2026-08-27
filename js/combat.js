@@ -191,12 +191,27 @@ async function startBattle(matchConfig) {
       updateCharacterMedia('p2', 'IDLE');
     }
 
+    // HIDE TOUCH CONTROLS IF P1 IS CPU
+    const humanControls = document.getElementById('human-control-panel');
+    if (humanControls) {
+      humanControls.hidden = !!gameState.p1.isCPU;
+    }
+
     // SAFE WINDOW SCOPE TIMER INVOCATION
     const launchCountdown = window.startRoundCountdown || (typeof startRoundCountdown === 'function' ? startRoundCountdown : null);
     if (launchCountdown) {
       launchCountdown();
     } else {
       gameState.roundPhase = 'INPUT';
+    }
+
+    // CPU VS CPU AUTO RESOLUTION TRIGGER
+    if (gameState.p1.isCPU && gameState.p2.isCPU) {
+      setTimeout(() => {
+        if (gameState.roundPhase === 'INPUT') {
+          executeTurnResolutionPhase();
+        }
+      }, 1200);
     }
   }
 }
@@ -700,7 +715,6 @@ async function executeTurnResolutionPhase() {
           await playCenterVideo(defKey1, 'dodge.mp4', 'EVADED!');
           defender1.lp = Math.max(0, defender1.lp - result.finalDmg);
 
-          // D-SKILL CHI GAIN GATED STRICTLY BY HIT LANDED
           if (key1.startsWith('D') && (move1.chiCost || 0) <= 0) {
             const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
             attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain);
@@ -721,7 +735,6 @@ async function executeTurnResolutionPhase() {
 
           defender1.lp = Math.max(0, defender1.lp - result.finalDmg);
 
-          // D-SKILL CHI GAIN GATED STRICTLY BY HIT LANDED
           if (key1.startsWith('D') && (move1.chiCost || 0) <= 0) {
             const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
             attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain);
@@ -798,7 +811,6 @@ async function executeTurnResolutionPhase() {
         await playCenterVideo(defKey2, 'dodge.mp4', 'EVADED!');
         defender2.lp = Math.max(0, defender2.lp - result.finalDmg);
 
-        // D-SKILL CHI GAIN GATED STRICTLY BY HIT LANDED
         if (key2.startsWith('D') && (move2.chiCost || 0) <= 0) {
           const chiGain = (key2 === 'D+J' || key2 === 'D+K') ? 2 : 3;
           attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain);
@@ -817,7 +829,6 @@ async function executeTurnResolutionPhase() {
 
         defender2.lp = Math.max(0, defender2.lp - result.finalDmg);
 
-        // D-SKILL CHI GAIN GATED STRICTLY BY HIT LANDED
         if (key2.startsWith('D') && (move2.chiCost || 0) <= 0) {
           const chiGain = (key2 === 'D+J' || key2 === 'D+K') ? 2 : 3;
           attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain);
@@ -915,6 +926,15 @@ async function executeTurnResolutionPhase() {
       } else {
         gameState.roundPhase = 'INPUT';
       }
+
+      // CPU VS CPU AUTO RESOLUTION TRIGGER FOR NEXT ROUND
+      if (gameState.p1.isCPU && gameState.p2.isCPU) {
+        setTimeout(() => {
+          if (gameState.roundPhase === 'INPUT') {
+            executeTurnResolutionPhase();
+          }
+        }, 1200);
+      }
     } else {
       gameState.roundPhase = 'GAME_OVER';
       if (battleMsg) battleMsg.hidden = false;
@@ -999,7 +1019,6 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
     let defenderChargeFactor = Math.sqrt(0.5 + (0.5 * defenderChargeRatio));
     let effectiveGuardChance = 70 * defenderChargeFactor;
 
-    // CHECK IF GUARD IS A DEDICATED 100% BLOCK SPECIAL GUARD OR MATCHING COUNTER
     const isSpecialGuard = (defMoveKey === 'A+I' && guardChiCost > 0) || defMove.name === 'Windmill Guard' || defMove.name === 'Cutter Blade Block' || defMove.isSpecialGuard === true;
 
     if (isSpecialGuard) {
@@ -1013,7 +1032,7 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
       if (Math.random() * 100 < effectiveGuardChance) {
         guardSuccess = true;
         damageRatio = 0.30;
-        chiGained = 2; // +2 CHI COUNTER REWARD
+        chiGained = 2;
       } else {
         guardSuccess = false;
         damageRatio = 1.0;
@@ -1028,7 +1047,6 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
   let rolledHit = false;
   let isGlancing = false;
 
-  // STRICT GUARANTEE: Fainted defenders CANNOT dodge, evade, or glance
   if (defender.isFainted) {
     rolledHit = true;
     isGlancing = false;
@@ -1044,7 +1062,6 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
 
     let attackerHitBonus = (attacker.id === 'nigo' && attacker.airborneTicks > 0) ? 15 : 0;
 
-    // APPLY ARM CALIBRATION ACCURACY BUFF IF ACTIVE
     if (attacker.activeBuffs && attacker.activeBuffs.some(b => b.id === 'arm_calibration')) {
       attackerHitBonus += 15;
     }
