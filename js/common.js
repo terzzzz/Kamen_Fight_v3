@@ -1,5 +1,5 @@
 /**
- * Shared Game & Combat Configuration
+ * Shared Game & Combat Configuration & Global Helpers
  * Path: js/common.js
  */
 
@@ -22,3 +22,40 @@ window.GAME_CONFIG = {
   LATE_DECISION_THRESHOLD: 7.0,
   HARD_CPU_HP_MULTIPLIER: 1.30
 };
+
+/**
+ * Common Helper: Retrieve Opponent Move Data (Works for CPU and Human)
+ */
+function getOpponentMovesData(opponentPlayer) {
+  if (typeof gameState !== 'undefined') {
+    if (opponentPlayer === gameState.p1 && gameState.p1Moves) return gameState.p1Moves;
+    if (opponentPlayer === gameState.p2 && gameState.p2Moves) return gameState.p2Moves;
+  }
+  return typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
+}
+
+/**
+ * Common Helper: Calculate Match Timing Metrics
+ */
+function getMatchTimingConfig() {
+  const matchCfg = (typeof gameState !== 'undefined' && gameState.matchConfig) ? gameState.matchConfig : {};
+  const sysCfg = (typeof GAME_CONFIG !== 'undefined') ? GAME_CONFIG : (window.GAME_CONFIG || {});
+
+  const baseRoundWindow = (typeof gameState !== 'undefined' && gameState.roundTimeLimit !== undefined)
+    ? gameState.roundTimeLimit
+    : (matchCfg.roundTimeLimit || sysCfg.ROUND_TIME_LIMIT || 8.0);
+
+  const chargeTimeRequired = (typeof gameState !== 'undefined' && gameState.chargeTimeRequired !== undefined)
+    ? gameState.chargeTimeRequired
+    : (matchCfg.chargeTimeRequired || sysCfg.CHARGE_TIME_REQUIRED || 2.5);
+
+  const extensionBonus = (typeof gameState !== 'undefined' && gameState.lateExtensionBonus !== undefined)
+    ? gameState.lateExtensionBonus
+    : (matchCfg.lateExtensionBonus || sysCfg.LATE_EXTENSION_BONUS || 1.0);
+
+  const lateThreshold = (typeof gameState !== 'undefined' && gameState.lateDecisionThreshold !== undefined)
+    ? gameState.lateDecisionThreshold
+    : (matchCfg.lateDecisionThreshold || sysCfg.LATE_DECISION_THRESHOLD || (baseRoundWindow - 1.0));
+
+  return { baseRoundWindow, chargeTimeRequired, extensionBonus, lateThreshold };
+}
