@@ -216,6 +216,10 @@ async function startBattle(matchConfig) {
   }
 }
 
+/**
+ * CPU Decision Choice Handler
+ * Routes directly through Universal selectCPUMove Controller
+ */
 function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
   if (cpuPlayer.isFainted || (playerKey === 'p2' && gameState.p2AlwaysIdle)) return 'DO_NOTHING';
 
@@ -232,13 +236,13 @@ function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
     ? (gameState.p2IsConfirmed || (gameState.p2 && gameState.p2.isFainted) || gameState.p2AlwaysIdle)
     : (gameState.input?.isConfirmed || (gameState.p1 && gameState.p1.isFainted));
 
-  // FILTER AVAILABLE MOVES
+  // FILTER AFFORDABLE MOVES
   let availableMoves = {};
   Object.keys(movesData).forEach(key => {
     const m = movesData[key];
     if (m && typeof m === 'object' && (m.chiCost || 0) <= cpuPlayer.chi) {
       if (!isOpponentLocked && (key.startsWith('A+') || m.type === 'DEFENSE')) {
-        return; // Skip guard moves
+        return; // Skip guard moves if opponent hasn't locked
       }
       availableMoves[key] = m;
     }
@@ -248,12 +252,9 @@ function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
     return 'D+J';
   }
 
+  // DIRECT ROUTE TO CENTRAL CONTROLLER
   let chosenKey = null;
-  if (cpuPlayer.id === 'ichigo' && typeof selectIchigoCPUMove === 'function') {
-    chosenKey = selectIchigoCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
-  } else if (cpuPlayer.id === 'v3' && typeof selectV3CPUMove === 'function') {
-    chosenKey = selectV3CPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
-  } else if (typeof selectCPUMove === 'function') {
+  if (typeof selectCPUMove === 'function') {
     chosenKey = selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
   }
 
@@ -264,14 +265,6 @@ function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
 
   if (!isOpponentLocked && (chosenKey.startsWith('A+') || availableMoves[chosenKey]?.type === 'DEFENSE')) {
     chosenKey = 'D+J';
-  }
-
-  if (chosenKey.startsWith('S') || chosenKey.startsWith('W')) {
-    cpuPlayer.activeChargePercent = 100;
-  } else if (chosenKey.startsWith('D')) {
-    cpuPlayer.activeChargePercent = 90 + Math.floor(Math.random() * 11);
-  } else {
-    cpuPlayer.activeChargePercent = 100;
   }
 
   return chosenKey;
