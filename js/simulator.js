@@ -36,7 +36,6 @@ function getSimMove(moves, key) {
 function selectCPUMoveSim(cpu, opp, moves, difficulty) {
   if (cpu.isFainted) return 'DO_NOTHING';
 
-  // Normalize difficulty string to lowercase
   const diff = String(difficulty || 'normal').toLowerCase();
 
   // Filter moves affordable with current Chi
@@ -76,10 +75,14 @@ function selectCPUMoveSim(cpu, opp, moves, difficulty) {
     return offensiveKeys.length > 0 ? offensiveKeys[Math.floor(Math.random() * offensiveKeys.length)] : 'D+J';
   }
 
-  // EASY AI: Highly passive, frequently passes turns or uses basic punches
+  // EASY AI: Active enough to finish matches, but relies on low-damage basic physical strikes and rarely uses high-tier Specials
   const roll = Math.random();
-  if (roll < 0.55) return 'DO_NOTHING'; // 55% chance to skip turn
-  if (roll < 0.85) return 'D+J';         // 30% basic weak punch
+  if (roll < 0.15) return 'DO_NOTHING'; // 15% slight hesitation
+  if (roll < 0.70 && physicalKeys.length > 0) {
+    // 55% simple basic physical pokes (D+J, D+K)
+    return physicalKeys[Math.floor(Math.random() * physicalKeys.length)];
+  }
+  // 30% random affordable action
   return availableKeys[Math.floor(Math.random() * availableKeys.length)];
 }
 
