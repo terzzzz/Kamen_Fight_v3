@@ -187,84 +187,100 @@
     return score;
   }
 
-  /**
-   * Main 3-Turn Minimax Decision Search Function
-   */
-  function run3TurnForeseeSearch(cpuPlayer, opponentPlayer, selfMovesData, oppMovesData, options = {}) {
-    const maxDepth = options.maxDepth || 3;
-    const characterWeights = options.characterWeights || {};
-    const isOpponentLocked = options.isOpponentLocked || false;
-    const lockedOpponentMoveKey = options.lockedOpponentMoveKey || null;
+/**
+ * Updated run3TurnForeseeSearch in js/foresee_engine.js
+ * Adds Expectimax support for Normal Difficulty vs Random/Suboptimal players.
+ */
+function run3TurnForeseeSearch(cpuPlayer, opponentPlayer, selfMovesData, oppMovesData, options = {}) {
+  const maxDepth = options.maxDepth || 3;
+  const characterWeights = options.characterWeights || {};
+  const isOpponentLocked = options.isOpponentLocked || false;
+  const lockedOpponentMoveKey = options.lockedOpponentMoveKey || null;
+  const useExpectimax = options.useExpectimax !== undefined ? options.useExpectimax : (maxDepth < 3);
 
-    const getValidMoves = (player, moves) => {
-      const valid = Object.keys(moves).filter(k => (moves[k].chiCost || 0) <= player.chi);
-      return valid.length > 0 ? valid : ['D+J'];
-    };
+  const getValidMoves = (player, moves) => {
+    const valid = Object.keys(moves).filter(k => (moves[k].chiCost || 0) <= player.chi);
+    return valid.length > 0 ? valid : ['D+J'];
+  };
 
-    function minimax(selfState, oppState, depth) {
-      if (depth === 0 || selfState.lp <= 0 || oppState.lp <= 0) {
-        return evaluateLeafState(selfState, oppState, characterWeights);
-      }
+  function searchTree(selfState, oppState, depth) {
+    if (depth === 0 || selfState.lp <= 0 || oppState.lp <= 0) {
+      return evaluateLeafState(selfState, oppState, characterWeights);
+    }
 
-      const selfValid = getValidMoves(selfState, selfMovesData);
-      const oppValid = getValidMoves(oppState, oppMovesData);
+    const selfValid = getValidMoves(selfState, selfMovesData);
+    const oppValid = getValidMoves(oppState, oppMovesData);
 
-      let bestSelfVal = -Infinity;
+    let bestSelfVal = -Infinity;
 
-      for (let sMove of selfValid) {
-        let worstOppVal = Infinity;
-
+    for (let sMove of selfValid) {
+      if (useExpectimax) {
+        // EXPECTIMAX: Average outcome across opponent moves
+        let totalOppVal = 0;
         for (let oMove of oppValid) {
           const { nextSelf, nextOpp } = simulateTurnState(
             selfState, oppState, sMove, oMove, selfMovesData, oppMovesData
           );
-
-          const nodeValue = minimax(nextSelf, nextOpp, depth - 1);
+          totalOppVal += searchTree(nextSelf, nextOpp, depth - 1);
+        }
+        let avgVal = totalOppVal / oppValid.length;
+        bestSelfVal = Math.max(bestSelfVal, avgVal);
+      } else {
+        // MINIMAX: Worst-case counter-attack
+        let worstOppVal = Infinity;
+        for (let oMove of oppValid) {
+          const { nextSelf, nextOpp } = simulateTurnState(
+            selfState, oppState, sMove, oMove, selfMovesData, oppMovesData
+          );
+          const nodeValue = searchTree(nextSelf, nextOpp, depth - 1);
           worstOppVal = Math.min(worstOppVal, nodeValue);
         }
-
         bestSelfVal = Math.max(bestSelfVal, worstOppVal);
       }
-
-      return bestSelfVal;
     }
 
-    const selfValid = getValidMoves(cpuPlayer, selfMovesData);
-    let oppValid = getValidMoves(opponentPlayer, oppMovesData);
+    return bestSelfVal;
+  }
 
-    // IF HUMAN/OPPONENT HAS ALREADY LOCKED IN A MOVE, WE REACT DIRECTLY TO IT
-    if (isOpponentLocked && lockedOpponentMoveKey && oppMovesData[lockedOpponentMoveKey]) {
-      oppValid = [lockedOpponentMoveKey];
-    }
+  const selfValid = getValidMoves(cpuPlayer, selfMovesData);
+  let oppValid = getValidMoves(opponentPlayer, oppMovesData);
 
-    let bestMove = selfValid[0] || 'D+J';
-    let bestScore = -Infinity;
+  if (isOpponentLocked && lockedOpponentMoveKey && oppMovesData[lockedOpponentMoveKey]) {
+    oppValid = [lockedOpponentMoveKey];
+  }
 
-    for (let sMove of selfValid) {
-      let worstOppVal = Infinity;
+  let bestMove = selfValid[0] || 'D+J';
+  let bestScore = -Infinity;
 
+  for (let sMove of selfValid) {
+    let moveScore = 0;
+
+    if (useExpectimax) {
+      let totalOppVal = 0;
       for (let oMove of oppValid) {
         const { nextSelf, nextOpp } = simulateTurnState(
           cpuPlayer, opponentPlayer, sMove, oMove, selfMovesData, oppMovesData
         );
-
-        const score = minimax(nextSelf, nextOpp, maxDepth - 1);
+        totalOppVal += searchTree(nextSelf, nextOpp, maxDepth - 1);
+      }
+      moveScore = totalOppVal / oppValid.length;
+    } else {
+      let worstOppVal = Infinity;
+      for (let oMove of oppValid) {
+        const { nextSelf, nextOpp } = simulateTurnState(
+          cpuPlayer, opponentPlayer, sMove, oMove, selfMovesData, oppMovesData
+        );
+        const score = searchTree(nextSelf, nextOpp, maxDepth - 1);
         worstOppVal = Math.min(worstOppVal, score);
       }
-
-      if (worstOppVal > bestScore) {
-        bestScore = worstOppVal;
-        bestMove = sMove;
-      }
+      moveScore = worstOppVal;
     }
 
-    return bestMove;
+    if (moveScore > bestScore) {
+      bestScore = moveScore;
+      bestMove = sMove;
+    }
   }
 
-  window.ForeseeEngine = {
-    simulateTurnState,
-    evaluateLeafState,
-    run3TurnForeseeSearch
-  };
-
-})(typeof window !== 'undefined' ? window : this);
+  return bestMove;
+}
