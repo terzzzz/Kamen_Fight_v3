@@ -108,6 +108,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         modal.hidden = true;
         modal.style.display = 'none';
       }
+      // Re-enable button if on active step
+      const btn = document.getElementById('btn-simulate-matches');
+      if (btn && vsSelectionState.step > 1) {
+        btn.disabled = false;
+      }
     });
   }
 
@@ -310,6 +315,7 @@ function updateSelectionUI() {
  * Executes batch simulation and renders results table into the simulation modal
  */
 async function handleSimulateMatches() {
+  const simBtn = document.getElementById('btn-simulate-matches');
   const modal = document.getElementById('sim-modal');
   const resultsBody = document.getElementById('sim-results-body');
   const countSelect = document.getElementById('sim-count-select');
@@ -326,9 +332,17 @@ async function handleSimulateMatches() {
   const p1Diff = vsSelectionState.p1IsCPU ? vsSelectionState.p1Difficulty : 'normal';
   const p2Diff = vsSelectionState.p2Difficulty;
 
+  // Lock button during calculation to prevent double clicks
+  if (simBtn) {
+    simBtn.disabled = true;
+  }
+
   resultsBody.innerHTML = `<p style="text-align:center; color:#00ffcc; font-weight:bold;">Running ${count} Headless Match Simulations...</p>`;
   modal.hidden = false;
   modal.style.display = 'flex';
+
+  // Micro-tick delay so browser renders the "Running..." text before thread locks
+  await new Promise(resolve => setTimeout(resolve, 50));
 
   try {
     if (typeof window.runBatchSimulation !== 'function') {
@@ -386,6 +400,11 @@ async function handleSimulateMatches() {
   } catch (err) {
     console.error("Batch Simulation Error:", err);
     resultsBody.innerHTML = `<p style="color:#ff2a5f; text-align:center;">Simulation Failed: ${err.message}</p>`;
+  } finally {
+    // Always re-enable button after calculation finishes or fails
+    if (simBtn && vsSelectionState.step > 1) {
+      simBtn.disabled = false;
+    }
   }
 }
 
