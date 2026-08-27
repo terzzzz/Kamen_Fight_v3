@@ -303,28 +303,29 @@ function updateHUD() {
 }
 
 async function applyFaintBuildUp(player, playerKey, customAmount = null) {
-  if (!player.isFainted) {
-    const rules = window.COMBAT_RULES || COMBAT_RULES;
-    player.tookCleanHitThisRound = true;
-    const amount = customAmount !== null ? customAmount : rules.HIT_BUILDUP;
-    player.faintMeter = Math.min(rules.FAINT_THRESHOLD, player.faintMeter + amount);
+  // Ignore faint buildup if player is already KO'd
+  if (!player || player.lp <= 0 || player.isFainted) return;
 
-    if (player.faintMeter >= rules.FAINT_THRESHOLD) {
-      player.isFainted = true;
-      player.willBeFaintedNextRound = true;
+  const rules = window.COMBAT_RULES || COMBAT_RULES;
+  player.tookCleanHitThisRound = true;
+  const amount = customAmount !== null ? customAmount : rules.HIT_BUILDUP;
+  player.faintMeter = Math.min(rules.FAINT_THRESHOLD, player.faintMeter + amount);
 
-      const stunOverlay = document.getElementById(`${playerKey}-stun-overlay`);
-      if (stunOverlay) stunOverlay.hidden = false;
+  if (player.faintMeter >= rules.FAINT_THRESHOLD) {
+    player.isFainted = true;
+    player.willBeFaintedNextRound = true;
 
-      triggerFloatingText(playerKey, 'FAINTED!!', 'scratch');
+    const stunOverlay = document.getElementById(`${playerKey}-stun-overlay`);
+    if (stunOverlay) stunOverlay.hidden = false;
 
-      if (typeof playCenterVideo === 'function') {
-        await playCenterVideo(playerKey, 'faint.mp4', 'FAINTED!');
-      }
+    triggerFloatingText(playerKey, 'FAINTED!!', 'scratch');
 
-      if (typeof updateCharacterMedia === 'function') {
-        updateCharacterMedia(playerKey, 'IDLE');
-      }
+    if (typeof playCenterVideo === 'function') {
+      await playCenterVideo(playerKey, 'faint.mp4', 'FAINTED!');
+    }
+
+    if (typeof updateCharacterMedia === 'function') {
+      updateCharacterMedia(playerKey, 'IDLE');
     }
   }
 }
@@ -1453,6 +1454,7 @@ async function executeTurnResolutionPhase() {
       ['p1', 'p2'].forEach(slot => {
         const stunOverlay = document.getElementById(`${slot}-stun-overlay`);
         if (stunOverlay) stunOverlay.hidden = true;
+        if (gameState[slot]) gameState[slot].isFainted = false;
       });
 
       let resultText = "";
