@@ -11,9 +11,9 @@
   <!-- CHARACTER SELECTION SCREEN (VISIBLE ON BOOT) -->
   <div id="vs-select-screen" class="screen-container">
     <div class="bgm-volume-control" style="position: absolute; top: 15px; right: 20px; display: flex; align-items: center; gap: 8px; font-family: monospace; color: #00ffcc;">
-  <label for="bgm-slider">🔊 BGM:</label>
-  <input type="range" id="bgm-slider" min="0" max="1" step="0.05" value="0.5" oninput="changeBGMVolume(this.value)" style="cursor: pointer; accent-color: #00ffcc;">
-</div>
+      <label for="bgm-slider">🔊 BGM:</label>
+      <input type="range" id="bgm-slider" min="0" max="1" step="0.05" value="0.5" oninput="changeBGMVolume(this.value)" style="cursor: pointer; accent-color: #00ffcc;">
+    </div>
     <h1 id="vs-header-text">STEP 1: SELECT PLAYER 1 RIDER</h1>
 
     <div class="selection-layout">
@@ -187,27 +187,27 @@
   </div>
 
   <!-- SIMULATION RESULTS MODAL -->
-  <div id="sim-modal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 9999;" hidden>
-    <div style="background: #111; border: 2px solid #00ffcc; padding: 25px; width: 85%; max-width: 600px; color: #fff; text-align: center; font-family: monospace; box-shadow: 0 0 20px #00ffcc; border-radius: 8px;">
-      <h2 style="color: #00ffcc; margin-top: 0;">SIMULATION RESULTS</h2>
-      <div id="sim-results-body" style="margin: 20px 0;"></div>
-      <button id="btn-close-sim-modal" style="padding: 10px 25px; background: #ff3366; color: #fff; border: none; cursor: pointer; font-weight: bold; font-family: monospace; border-radius: 4px;">CLOSE</button>
+  <div id="sim-modal" hidden>
+    <div class="sim-modal-content">
+      <h2 style="color: #00ffcc; margin-top: 0; text-align: center;">SIMULATION RESULTS</h2>
+      <div id="sim-results-body"></div>
+      <div style="text-align: center; margin-top: 15px;">
+        <button id="btn-close-sim-modal" class="nav-btn">CLOSE</button>
+      </div>
     </div>
   </div>
 
-  <!-- SCRIPT IMPORTS -->
+  <!-- SCRIPT IMPORTS (STRICT DEPENDENCY ORDER) -->
   <script src="data/items.js"></script>
   <script src="js/item.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/foresee_engine.js"></script>
+  <script src="js/cpu_controller.js"></script>
   <script src="js/ai.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/media.js"></script>
-  <script src="js/common.js"></script>
-  <script src="js/combat.js"></script>
-  <script src="js/cpu_ichigo.js"></script>
-  <script src="js/cpu_nigo.js"></script>
-  <script src="js/cpu_v3.js"></script>
-  <script src="js/cpu_riderman.js"></script>
   <script src="js/simulator.js"></script>
+  <script src="js/combat.js"></script>
   <script src="js/vs_select.js"></script>
   <script src="js/game.js"></script>
   <script src="js/ui.js"></script>
