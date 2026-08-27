@@ -3,23 +3,20 @@
  * Path: js/cpu_controller.js
  */
 
-/**
- * Dynamically calculates charge percentage based on selected move type, rider profile, and difficulty
- */
 function setUniversalChargeTarget(cpuPlayer, moveKey, difficulty, profile) {
   let target = 100;
 
   if (moveKey.startsWith('A+')) {
-    target = 15; // Quick charge for defensive guards
+    target = 15;
   } else if (difficulty === 'easy') {
-    target = Math.floor(Math.random() * 16) + 65; // 65% - 80%
+    target = Math.floor(Math.random() * 16) + 65;
   } else if (difficulty === 'hard') {
-    target = Math.floor(Math.random() * 9) + 92; // 92% - 100%
+    target = Math.floor(Math.random() * 9) + 92;
   } else if (moveKey.startsWith('D')) {
     const range = profile.dChargeRange || [85, 95];
     target = range[0] + Math.floor(Math.random() * (range[1] - range[0] + 1));
   } else {
-    target = Math.floor(Math.random() * 11) + 85; // Normal default 85% - 95%
+    target = Math.floor(Math.random() * 11) + 85;
   }
 
   cpuPlayer.activeChargePercent = target;
@@ -36,12 +33,12 @@ function selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty = '
   const keys = Object.keys(availableMoves);
   let chosenKey = null;
 
-  // EASY MODE: 40% Random Blunder Rate
+  // EASY MODE BLUNDER RATE
   if (difficulty === 'easy' && Math.random() < 0.40) {
     chosenKey = keys[Math.floor(Math.random() * keys.length)];
   }
 
-  // IMMEDIATE LETHAL CHECK: Check scaled damage at ~90% charge factor
+  // LETHAL FINISHER CHECK
   if (!chosenKey) {
     for (let key of keys) {
       const move = availableMoves[key];
@@ -55,12 +52,16 @@ function selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty = '
     }
   }
 
-  // FORESEE ENGINE LOOKAHEAD DISPATCH
+  // SAFE FORESEE ENGINE EXECUTION
   if (!chosenKey && window.ForeseeEngine && typeof window.ForeseeEngine.getBestMove === 'function') {
-    const depth = difficulty === 'hard' ? 3 : (difficulty === 'easy' ? 1 : 2);
-    const bestMove = window.ForeseeEngine.getBestMove(cpuPlayer, opponentPlayer, availableMoves, profile, depth);
-    if (bestMove && availableMoves[bestMove]) {
-      chosenKey = bestMove;
+    try {
+      const depth = difficulty === 'hard' ? 3 : (difficulty === 'easy' ? 1 : 2);
+      const bestMove = window.ForeseeEngine.getBestMove(cpuPlayer, opponentPlayer, availableMoves, profile, depth);
+      if (bestMove && availableMoves[bestMove]) {
+        chosenKey = bestMove;
+      }
+    } catch (err) {
+      console.warn("ForeseeEngine fallback triggered:", err);
     }
   }
 
@@ -69,9 +70,7 @@ function selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty = '
     chosenKey = keys[Math.floor(Math.random() * keys.length)] || 'D+J';
   }
 
-  // APPLY CHARGE TARGET FOR THE CHOSEN MOVE
   setUniversalChargeTarget(cpuPlayer, chosenKey, difficulty, profile);
-
   return chosenKey;
 }
 
