@@ -161,18 +161,6 @@ function resetRoundState() {
   gameState.p2ChargePercent = undefined;
 
   gameState.roundPhase = 'INPUT';
-
-  ['p1', 'p2'].forEach(slot => {
-    const player = gameState[slot];
-    if (player) {
-      player.willBeFaintedNextRound = false;
-      if (player.faintMeter < (window.COMBAT_RULES || COMBAT_RULES).FAINT_THRESHOLD) {
-        player.isFainted = false;
-        const stunOverlay = document.getElementById(`${slot}-stun-overlay`);
-        if (stunOverlay) stunOverlay.hidden = true;
-      }
-    }
-  });
 }
 
 function resetCharge() {
@@ -225,9 +213,6 @@ function resetTurnInputState() {
   if (flag2El) flag2El.hidden = true;
 }
 
-/**
- * Safe CPU Aggressive Fallback (Strictly Non-Defensive)
- */
 function getCPUAggressiveFallback(playerKey) {
   const moves = playerKey === 'p1' ? gameState.p1Moves : gameState.p2Moves;
   const player = gameState[playerKey];
@@ -270,7 +255,6 @@ function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
   Object.keys(movesData).forEach(key => {
     const m = movesData[key];
     if (m && typeof m === 'object' && (m.chiCost || 0) <= cpuPlayer.chi) {
-      // RULE: Strictly exclude Guard / Defensive moves if opponent has not locked in an action
       if (!isOpponentLocked && (key.startsWith('A+') || m.type === 'DEFENSE')) {
         return;
       }
@@ -290,7 +274,6 @@ function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
     chosenKey = keys.length > 0 ? keys[Math.floor(Math.random() * keys.length)] : 'D+J';
   }
 
-  // Safety Double-Check
   if (!isOpponentLocked && (chosenKey.startsWith('A+') || availableMoves[chosenKey]?.type === 'DEFENSE')) {
     chosenKey = getCPUAggressiveFallback(playerKey);
   }
@@ -315,7 +298,6 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
   const move = getMoveForPlayer(playerKey, moveKey);
   const isGuardMove = moveKey.startsWith('A+') || (move && move.type === 'DEFENSE');
 
-  // Guard Lockout Rule
   if (isGuardMove && !isOpponentLocked) {
     if (player.isCPU) {
       const fallbackKey = getCPUAggressiveFallback(playerKey);
@@ -336,7 +318,6 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
     return false;
   }
 
-  // Chi Cost Validation
   if (moveKey !== 'DO_NOTHING') {
     const chiCost = move.chiCost || 0;
     if (player.chi < chiCost) {
@@ -447,6 +428,8 @@ function startRoundCountdown() {
   gameState.roundPhase = 'INPUT';
   resetTurnInputState();
 
+  const rules = window.COMBAT_RULES || COMBAT_RULES;
+
   if (gameState.roundCounter > 1) {
     ['p1', 'p2'].forEach(slot => {
       const player = gameState[slot];
@@ -477,6 +460,7 @@ function startRoundCountdown() {
     if (gameState.input) gameState.input.acceptingInputs = true;
   }, 300);
 
+  // FAINT STATE LIFECYCLE EVALUATION
   ['p1', 'p2'].forEach(slot => {
     const player = gameState[slot];
     if (!player) return;
@@ -484,9 +468,10 @@ function startRoundCountdown() {
     if (player.willBeFaintedNextRound) {
       player.isFainted = true;
       player.willBeFaintedNextRound = false;
-      player.faintMeter = 0;
-    } else {
+      player.faintMeter = rules.FAINT_THRESHOLD;
+    } else if (player.isFainted) {
       player.isFainted = false;
+      player.faintMeter = 0;
     }
 
     const stunOverlay = document.getElementById(`${slot}-stun-overlay`);
@@ -511,10 +496,10 @@ function startRoundCountdown() {
   updateCharacterMedia('p1', 'IDLE');
   updateCharacterMedia('p2', 'IDLE');
 
-  if (gameState.p1 && gameState.p1.isFainted && !gameState.p1.isCPU) {
+  if (gameState.p1 && gameState.p1.isFainted) {
     confirmPlayerAction('DO_NOTHING', 'p1');
   }
-  if (gameState.p2 && gameState.p2.isFainted && !gameState.p2.isCPU) {
+  if (gameState.p2 && gameState.p2.isFainted) {
     confirmPlayerAction('DO_NOTHING', 'p2');
   }
 
@@ -536,13 +521,12 @@ function startRoundCountdown() {
   const timerEl = document.getElementById('turn-timer');
   if (timerEl) timerEl.textContent = `TIME: ${gameState.turnTimerSeconds}s`;
 
-  // Initial CPU Think Schedule
   ['p1', 'p2'].forEach(slot => {
     const player = gameState[slot];
     if (player && player.isCPU && !player.isFainted) {
       if (slot === 'p2' && gameState.p2AlwaysIdle) return;
 
-      const thinkTime = Math.floor(Math.random() * 1000 + 800); // 0.8s - 1.8s
+      const thinkTime = Math.floor(Math.random() * 1000 + 800);
       setTimeout(() => {
         if (gameState.roundPhase !== 'INPUT' || (slot === 'p1' ? (gameState.input && gameState.input.isConfirmed) : gameState.p2IsConfirmed)) return;
         const oppSlot = slot === 'p1' ? 'p2' : 'p1';
@@ -556,14 +540,12 @@ function startRoundCountdown() {
     }
   });
 
-  // Countdown Loop with 50% Time Enforcement
   gameState.timerInterval = setInterval(() => {
     if (gameState.roundPhase !== 'INPUT') return;
 
     gameState.turnTimerSeconds--;
     if (timerEl) timerEl.textContent = `TIME: ${gameState.turnTimerSeconds}s`;
 
-    // 50% TIME LEFT CONDITION (TIME <= 4s)
     const baseWindow = (window.GAME_CONFIG && window.GAME_CONFIG.ROUND_TIME_LIMIT) || 8.0;
     const halfTimeThreshold = Math.floor(baseWindow / 2);
 
@@ -578,7 +560,6 @@ function startRoundCountdown() {
           const oppSlot = slot === 'p1' ? 'p2' : 'p1';
           const isOpponentConfirmed = oppSlot === 'p1' ? (gameState.input && gameState.input.isConfirmed) : gameState.p2IsConfirmed;
 
-          // If opponent hasn't acted by 50% time, force non-defensive move immediately
           let moveKey = getCPUMoveChoice(player, gameState[oppSlot], slot);
           if (!isOpponentConfirmed && (moveKey.startsWith('A+') || getMoveForPlayer(slot, moveKey).type === 'DEFENSE')) {
             moveKey = getCPUAggressiveFallback(slot);
@@ -593,7 +574,6 @@ function startRoundCountdown() {
       });
     }
 
-    // TIME EXPIRED (TIME = 0s)
     if (gameState.turnTimerSeconds <= 0) {
       clearInterval(gameState.timerInterval);
 
@@ -1364,13 +1344,11 @@ async function executeTurnResolutionPhase() {
     processRoundBuffs(gameState.p1);
     processRoundBuffs(gameState.p2);
 
+    // PASSIVE RECOVERY CHECK (ONLY IF NOT FAINTED)
     ['p1', 'p2'].forEach(slot => {
       const player = gameState[slot];
       if (player) {
-        if (player.willBeFaintedNextRound) {
-          player.isFainted = true;
-          player.faintMeter = 100;
-        } else if (!player.tookCleanHitThisRound && player.faintMeter > 0) {
+        if (!player.isFainted && !player.tookCleanHitThisRound && player.faintMeter > 0) {
           player.faintMeter = Math.max(0, player.faintMeter - rules.ROUND_RECOVERY);
         }
         player.tookCleanHitThisRound = false;
