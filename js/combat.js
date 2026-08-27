@@ -23,7 +23,6 @@ const GAME_CONFIG = window.GAME_CONFIG || {
   HARD_CPU_HP_MULTIPLIER: 1.30
 };
 
-// HELPER: CALCULATE RANGE PRIORITY (PROJECTILE > REACH > MELEE)
 function getMoveRangePriority(move) {
   if (!move) return 1;
   const range = (move.rangeType || 'MELEE').toUpperCase();
@@ -32,7 +31,6 @@ function getMoveRangePriority(move) {
   return 1;
 }
 
-// HELPER: CALCULATE DYNAMIC FAINT BUILD-UP FROM MOVE DATA
 function getFaintDamageForMove(move) {
   if (move && typeof move.baseFaintDamage === 'number') {
     return move.baseFaintDamage;
@@ -40,7 +38,6 @@ function getFaintDamageForMove(move) {
   return (window.COMBAT_RULES || COMBAT_RULES).HIT_BUILDUP || 25;
 }
 
-// HELPER: QUEUE POP-UPS WITH STRICT 0.7 SECOND (700ms) INTERVALS
 function triggerStaggeredPopups(slotKey, popups) {
   popups.forEach((item, index) => {
     setTimeout(() => {
@@ -53,7 +50,20 @@ function triggerStaggeredPopups(slotKey, popups) {
   });
 }
 
-// ROUND STATE CLEANUP HANDLER
+function launchRoundTimer() {
+  gameState.roundPhase = 'INPUT';
+
+  if (typeof window.startRoundCountdown === 'function') {
+    window.startRoundCountdown();
+  } else if (typeof window.startRoundTimer === 'function') {
+    window.startRoundTimer();
+  } else if (typeof window.startTimer === 'function') {
+    window.startTimer();
+  } else if (typeof startRoundCountdown === 'function') {
+    startRoundCountdown();
+  }
+}
+
 function resetRoundState() {
   gameState.input = null;
   gameState.p1SelectedMoveKey = null;
@@ -65,7 +75,7 @@ function resetRoundState() {
   if (gameState.p2) gameState.p2.activeChargePercent = undefined;
   gameState.p2ChargePercent = undefined;
 
-  gameState.roundPhase = 'IDLE'; // Fixed: Avoid entering INPUT state before countdown starts
+  gameState.roundPhase = 'INPUT';
 
   ['p1', 'p2'].forEach(slot => {
     const player = gameState[slot];
@@ -80,7 +90,6 @@ function resetRoundState() {
   });
 }
 
-// BATTLE INITIALIZATION WITH GUARANTEED LIFECYCLE UNLOCK
 async function startBattle(matchConfig) {
   if (!window.gameState) window.gameState = {};
   gameState.matchConfig = matchConfig || {};
@@ -179,7 +188,7 @@ async function startBattle(matchConfig) {
     await new Promise(resolve => setTimeout(resolve, 1200));
 
   } catch (err) {
-    console.error("Match error:", err);
+    console.error("Match initialization error:", err);
   } finally {
     if (transitionScreen) transitionScreen.hidden = true;
     if (battleScreen) battleScreen.hidden = false;
@@ -196,12 +205,7 @@ async function startBattle(matchConfig) {
       humanControls.hidden = !!gameState.p1.isCPU;
     }
 
-    const launchCountdown = window.startRoundCountdown || (typeof startRoundCountdown === 'function' ? startRoundCountdown : null);
-    if (launchCountdown) {
-      launchCountdown();
-    } else {
-      gameState.roundPhase = 'INPUT';
-    }
+    launchRoundTimer();
 
     if (gameState.p1.isCPU && gameState.p2.isCPU) {
       setTimeout(() => {
@@ -213,7 +217,6 @@ async function startBattle(matchConfig) {
   }
 }
 
-// CPU DECISION DISPATCHER
 function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
   if (cpuPlayer.isFainted || (playerKey === 'p2' && gameState.p2AlwaysIdle)) return 'DO_NOTHING';
 
@@ -235,17 +238,14 @@ function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
     const m = movesData[key];
     if (m && typeof m === 'object' && (m.chiCost || 0) <= cpuPlayer.chi) {
       if (!isOpponentLocked && (key.startsWith('A+') || m.type === 'DEFENSE')) {
-        return; // Skip guard moves if opponent has not locked
+        return;
       }
       availableMoves[key] = m;
     }
   });
 
-  if (Object.keys(availableMoves).length === 0) {
-    return 'D+J';
-  }
+  if (Object.keys(availableMoves).length === 0) return 'D+J';
 
-  // DIRECT ROUTE TO CENTRAL CONTROLLER
   let chosenKey = null;
   if (typeof window.selectCPUMove === 'function') {
     chosenKey = window.selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
@@ -260,7 +260,6 @@ function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
     chosenKey = 'D+J';
   }
 
-  // Ensure default fallback charge if engine didn't set one
   if (cpuPlayer.activeChargePercent === undefined) {
     cpuPlayer.activeChargePercent = 100;
   }
@@ -481,7 +480,6 @@ async function applyFaintBuildUp(player, playerKey, customAmount = null) {
   }
 }
 
-// MAIN SEQUENTIAL RESOLUTION PHASE
 async function executeTurnResolutionPhase() {
   const rules = window.COMBAT_RULES || COMBAT_RULES;
   gameState.roundPhase = 'RESOLUTION';
@@ -494,7 +492,6 @@ async function executeTurnResolutionPhase() {
   let p1MoveKey = null;
   let p2MoveKey = null;
 
-  // CPU VS CPU MATCH RESOLUTION & UI SYNC
   if (gameState.p1.isCPU && gameState.p2.isCPU) {
     if (gameState.input) gameState.input = null;
 
@@ -509,7 +506,6 @@ async function executeTurnResolutionPhase() {
     gameState.p1SelectedMoveKey = p1MoveKey;
     gameState.p2SelectedMoveKey = p2MoveKey;
 
-    // Update Action Flags for CPU vs CPU Spectator Mode
     const flag1El = document.getElementById('p1-action-flag');
     if (flag1El) {
       flag1El.hidden = false;
@@ -582,18 +578,15 @@ async function executeTurnResolutionPhase() {
     p1GoesFirst = true;
   } else if (p1IsIdle && !p2IsIdle) {
     p1GoesFirst = false;
-  } 
-  else if (p1RangePriority > p2RangePriority) {
+  } else if (p1RangePriority > p2RangePriority) {
     p1GoesFirst = true;
   } else if (p1RangePriority < p2RangePriority) {
     p1GoesFirst = false;
-  } 
-  else if (p1IsS && p2IsD) {
+  } else if (p1IsS && p2IsD) {
     p1GoesFirst = true;
   } else if (p1IsD && p2IsS) {
     p1GoesFirst = false;
-  } 
-  else {
+  } else {
     let p1Charge = gameState.p1.activeChargePercent !== undefined ? gameState.p1.activeChargePercent : 100;
     let p2Charge = gameState.p2.activeChargePercent !== undefined ? gameState.p2.activeChargePercent : 100;
 
@@ -739,7 +732,7 @@ async function executeTurnResolutionPhase() {
     }
   }
 
-  // STEP 2 EXECUTION (CANCELED IF ATTACKER IS FAINTED OR INTERRUPTED)
+  // STEP 2 EXECUTION
   if (defender2.lp > 0 && !attacker2.isFainted && !defender1WasInterrupted && move2.type !== 'IDLE' && key2 !== 'DO_NOTHING' && move2.type !== 'DEFENSE') {
     if (move2.buff) applyBuff(attacker2, move2.buff.id, move2.buff.label, move2.buff.type, move2.buff.duration);
     handleAirborneState(attacker2, key2, move2);
@@ -843,7 +836,7 @@ async function executeTurnResolutionPhase() {
     triggerFloatingText(atkKey2, 'INTERRUPTED!', 'scratch');
   }
 
-  // ROUND CONCLUSION & FAINT CARRY-OVER PROCESSING
+  // ROUND CONCLUSION
   setTimeout(() => {
     hideCenterScreen();
     setSideBoxesBlank(false);
@@ -905,12 +898,7 @@ async function executeTurnResolutionPhase() {
       gameState.roundCounter++;
       resetRoundState();
 
-      const launchCountdown = window.startRoundCountdown || (typeof startRoundCountdown === 'function' ? startRoundCountdown : null);
-      if (launchCountdown) {
-        launchCountdown();
-      } else {
-        gameState.roundPhase = 'INPUT';
-      }
+      launchRoundTimer();
 
       if (gameState.p1.isCPU && gameState.p2.isCPU) {
         setTimeout(() => {
@@ -962,7 +950,6 @@ async function executeTurnResolutionPhase() {
   }, 1000);
 }
 
-// ATTACK RESOLUTION ENGINE
 function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMoveKey, defenderKey) {
   const rules = window.COMBAT_RULES || COMBAT_RULES;
   const isOffensive = !!(atkMove && rules.OFFENSIVE_TYPES.includes(atkMove.type?.toUpperCase()));
