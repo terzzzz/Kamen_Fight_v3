@@ -104,7 +104,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (closeSimBtn) {
     closeSimBtn.addEventListener('click', () => {
       const modal = document.getElementById('sim-modal');
-      if (modal) modal.hidden = true;
+      if (modal) {
+        modal.hidden = true;
+        modal.style.display = 'none';
+      }
     });
   }
 
@@ -303,49 +306,88 @@ function updateSelectionUI() {
   }
 }
 
-// Replace the innerHTML template string inside handleSimulateMatches in js/vs_select.js:
-resultsBody.innerHTML = `
-  <div class="sim-summary-header">
-    <p class="sim-matchup-title"><strong>${res.p1Name} (${p1Diff.toUpperCase()})</strong> VS <strong>${res.p2Name} (${p2Diff.toUpperCase()})</strong></p>
-    <p class="sim-winner-announce">OVERALL WINNER: <span class="highlight-winner" style="color: #00ffcc;">${overallWinner.toUpperCase()}</span></p>
-  </div>
-  <div class="sim-table-wrapper">
-    <table class="sim-table">
-      <thead>
-        <tr style="border-bottom: 1px solid #00ffcc;">
-          <th>STATISTIC</th>
-          <th>${res.p1Name.toUpperCase()}</th>
-          <th>${res.p2Name.toUpperCase()}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Victories (Win Rate)</td>
-          <td><strong>${res.p1Wins}</strong> (${res.p1WinRate}%)</td>
-          <td><strong>${res.p2Wins}</strong> (${res.p2WinRate}%)</td>
-        </tr>
-        <tr>
-          <td>Avg. LP Remaining</td>
-          <td>${res.p1AvgLpLeft} LP</td>
-          <td>${res.p2AvgLpLeft} LP</td>
-        </tr>
-        <tr>
-          <td>Avg. Chi Remaining</td>
-          <td>${res.p1AvgChiLeft} / 16 Chi</td>
-          <td>${res.p2AvgChiLeft} / 16 Chi</td>
-        </tr>
-        <tr>
-          <td>Avg. Match Duration</td>
-          <td colspan="2">${res.avgRounds} Rounds</td>
-        </tr>
-        <tr>
-          <td>Draws / Double KO</td>
-          <td colspan="2">${res.draws}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-`;
+/**
+ * Executes batch simulation and renders results table into the simulation modal
+ */
+async function handleSimulateMatches() {
+  const modal = document.getElementById('sim-modal');
+  const resultsBody = document.getElementById('sim-results-body');
+  const countSelect = document.getElementById('sim-count-select');
+
+  if (!modal || !resultsBody) {
+    console.error("Simulation Modal elements (#sim-modal or #sim-results-body) not found in DOM!");
+    return;
+  }
+
+  const count = countSelect ? parseInt(countSelect.value, 10) : 20;
+
+  const p1Rider = AVAILABLE_RIDERS[vsSelectionState.p1Index] || AVAILABLE_RIDERS[0];
+  const p2Rider = AVAILABLE_RIDERS[vsSelectionState.p2Index] || AVAILABLE_RIDERS[0];
+  const p1Diff = vsSelectionState.p1IsCPU ? vsSelectionState.p1Difficulty : 'normal';
+  const p2Diff = vsSelectionState.p2Difficulty;
+
+  resultsBody.innerHTML = `<p style="text-align:center; color:#00ffcc; font-weight:bold;">Running ${count} Headless Match Simulations...</p>`;
+  modal.hidden = false;
+  modal.style.display = 'flex';
+
+  try {
+    if (typeof window.runBatchSimulation !== 'function') {
+      throw new Error("simulator.js is not loaded or runBatchSimulation is missing.");
+    }
+
+    const res = await window.runBatchSimulation(p1Rider, p2Rider, count, p1Diff, p2Diff);
+
+    let overallWinner = 'DRAW';
+    if (res.p1Wins > res.p2Wins) overallWinner = `${res.p1Name} (${p1Diff.toUpperCase()})`;
+    else if (res.p2Wins > res.p1Wins) overallWinner = `${res.p2Name} (${p2Diff.toUpperCase()})`;
+
+    resultsBody.innerHTML = `
+      <div class="sim-summary-header">
+        <p class="sim-matchup-title"><strong>${res.p1Name} (${p1Diff.toUpperCase()})</strong> VS <strong>${res.p2Name} (${p2Diff.toUpperCase()})</strong></p>
+        <p class="sim-winner-announce">OVERALL WINNER: <span class="highlight-winner" style="color: #00ffcc;">${overallWinner.toUpperCase()}</span></p>
+      </div>
+      <div class="sim-table-wrapper">
+        <table class="sim-table">
+          <thead>
+            <tr style="border-bottom: 1px solid #00ffcc;">
+              <th>STATISTIC</th>
+              <th>${res.p1Name.toUpperCase()}</th>
+              <th>${res.p2Name.toUpperCase()}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Victories (Win Rate)</td>
+              <td><strong>${res.p1Wins}</strong> (${res.p1WinRate}%)</td>
+              <td><strong>${res.p2Wins}</strong> (${res.p2WinRate}%)</td>
+            </tr>
+            <tr>
+              <td>Avg. LP Remaining</td>
+              <td>${res.p1AvgLpLeft} LP</td>
+              <td>${res.p2AvgLpLeft} LP</td>
+            </tr>
+            <tr>
+              <td>Avg. Chi Remaining</td>
+              <td>${res.p1AvgChiLeft} / 16 Chi</td>
+              <td>${res.p2AvgChiLeft} / 16 Chi</td>
+            </tr>
+            <tr>
+              <td>Avg. Match Duration</td>
+              <td colspan="2">${res.avgRounds} Rounds</td>
+            </tr>
+            <tr>
+              <td>Draws / Double KO</td>
+              <td colspan="2">${res.draws}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    console.error("Batch Simulation Error:", err);
+    resultsBody.innerHTML = `<p style="color:#ff2a5f; text-align:center;">Simulation Failed: ${err.message}</p>`;
+  }
+}
 
 function validateAndStartMatch() {
   stopSelectionBGM();
