@@ -219,6 +219,9 @@ function resolveAttackSim(attacker, defender, atkMove, atkMoveKey, defMove, defM
   return { isOffensive: true, hitLanded: true, isGlancing: isGlancing, guardSuccess: guardSuccess, isMatchingGuard: isMatchingGuard, chiGained: chiGained, finalDmg: finalDmg };
 }
 
+/**
+ * Universal Simulation CPU Move Choice Dispatcher
+ */
 function selectCPUMoveSim(cpuPlayer, opponentPlayer, movesData, difficulty) {
   if (cpuPlayer.isFainted) return 'DO_NOTHING';
 
@@ -232,13 +235,8 @@ function selectCPUMoveSim(cpuPlayer, opponentPlayer, movesData, difficulty) {
 
   if (Object.keys(availableMoves).length === 0) return 'D+J';
 
-  if (cpuPlayer.id === 'ichigo' && typeof window.selectIchigoCPUMove === 'function') {
-    return window.selectIchigoCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
-  } else if (cpuPlayer.id === 'nigo' && typeof window.selectNigoCPUMove === 'function') {
-    return window.selectNigoCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
-  } else if (cpuPlayer.id === 'v3' && typeof window.selectV3CPUMove === 'function') {
-    return window.selectV3CPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
-  } else if (typeof window.selectCPUMove === 'function') {
+  // DIRECT ROUTING TO CENTRAL CONTROLLER
+  if (typeof window.selectCPUMove === 'function') {
     return window.selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
   }
 
@@ -266,8 +264,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
   };
 
   const hpMultiplier = (window.GAME_CONFIG && window.GAME_CONFIG.HARD_CPU_HP_MULTIPLIER) || 1.30;
-
-  // PRESERVE LIVE GAME STATE TO PREVENT SIMULATION POLLUTION
   const realGameState = window.gameState;
 
   try {
@@ -292,7 +288,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
         willBeFaintedNextRound: false, tookCleanHitThisRound: false, isCPU: true
       };
 
-      // MOCK GAMESTATE FOR CPU DECISION FUNCTIONS DURING SIMULATION
       window.gameState = {
         p1: p1,
         p2: p2,
@@ -401,11 +396,11 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
                 }
               }
             }
-          }
 
-          if (key1.startsWith('D')) {
-            const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
-            atk1.chi = Math.min(rules.MAX_CHI, atk1.chi + chiGain);
+            if (key1.startsWith('D')) {
+              const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
+              atk1.chi = Math.min(rules.MAX_CHI, atk1.chi + chiGain);
+            }
           }
         }
 
@@ -479,7 +474,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
       else stats.draws++;
     }
   } finally {
-    // RESTORE ORIGINAL LIVE GAME STATE
     window.gameState = realGameState;
   }
 
