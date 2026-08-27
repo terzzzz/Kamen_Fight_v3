@@ -188,14 +188,15 @@
   }
 
 /**
- * Updated run3TurnForeseeSearch in js/foresee_engine.js
- * Adds Expectimax support for Normal Difficulty vs Random/Suboptimal players.
+ * Main 3-Turn Decision Search Function (Supports Minimax & Expectimax)
  */
 function run3TurnForeseeSearch(cpuPlayer, opponentPlayer, selfMovesData, oppMovesData, options = {}) {
   const maxDepth = options.maxDepth || 3;
   const characterWeights = options.characterWeights || {};
   const isOpponentLocked = options.isOpponentLocked || false;
   const lockedOpponentMoveKey = options.lockedOpponentMoveKey || null;
+
+  // Use Expectimax (average valuation) for depth < 3 or when explicitly enabled
   const useExpectimax = options.useExpectimax !== undefined ? options.useExpectimax : (maxDepth < 3);
 
   const getValidMoves = (player, moves) => {
@@ -214,37 +215,42 @@ function run3TurnForeseeSearch(cpuPlayer, opponentPlayer, selfMovesData, oppMove
     let bestSelfVal = -Infinity;
 
     for (let sMove of selfValid) {
+      let oppBranchVal = 0;
+
       if (useExpectimax) {
-        // EXPECTIMAX: Average outcome across opponent moves
-        let totalOppVal = 0;
+        // EXPECTIMAX: Average expected outcome across all possible opponent responses
+        let sumVal = 0;
         for (let oMove of oppValid) {
           const { nextSelf, nextOpp } = simulateTurnState(
             selfState, oppState, sMove, oMove, selfMovesData, oppMovesData
           );
-          totalOppVal += searchTree(nextSelf, nextOpp, depth - 1);
+          sumVal += searchTree(nextSelf, nextOpp, depth - 1);
         }
-        let avgVal = totalOppVal / oppValid.length;
-        bestSelfVal = Math.max(bestSelfVal, avgVal);
+        oppBranchVal = sumVal / oppValid.length;
       } else {
-        // MINIMAX: Worst-case counter-attack
-        let worstOppVal = Infinity;
+        // MINIMAX: Worst-case counter-attack evaluation
+        let worstVal = Infinity;
         for (let oMove of oppValid) {
           const { nextSelf, nextOpp } = simulateTurnState(
             selfState, oppState, sMove, oMove, selfMovesData, oppMovesData
           );
-          const nodeValue = searchTree(nextSelf, nextOpp, depth - 1);
-          worstOppVal = Math.min(worstOppVal, nodeValue);
+          const nodeVal = searchTree(nextSelf, nextOpp, depth - 1);
+          worstVal = Math.min(worstVal, nodeVal);
         }
-        bestSelfVal = Math.max(bestSelfVal, worstOppVal);
+        oppBranchVal = worstVal;
       }
+
+      bestSelfVal = Math.max(bestSelfVal, oppBranchVal);
     }
 
     return bestSelfVal;
   }
 
+  // Root Level Decision
   const selfValid = getValidMoves(cpuPlayer, selfMovesData);
   let oppValid = getValidMoves(opponentPlayer, oppMovesData);
 
+  // If opponent has locked in an action, evaluate against that exact choice
   if (isOpponentLocked && lockedOpponentMoveKey && oppMovesData[lockedOpponentMoveKey]) {
     oppValid = [lockedOpponentMoveKey];
   }
@@ -256,24 +262,24 @@ function run3TurnForeseeSearch(cpuPlayer, opponentPlayer, selfMovesData, oppMove
     let moveScore = 0;
 
     if (useExpectimax) {
-      let totalOppVal = 0;
+      let sumVal = 0;
       for (let oMove of oppValid) {
         const { nextSelf, nextOpp } = simulateTurnState(
           cpuPlayer, opponentPlayer, sMove, oMove, selfMovesData, oppMovesData
         );
-        totalOppVal += searchTree(nextSelf, nextOpp, maxDepth - 1);
+        sumVal += searchTree(nextSelf, nextOpp, maxDepth - 1);
       }
-      moveScore = totalOppVal / oppValid.length;
+      moveScore = sumVal / oppValid.length;
     } else {
-      let worstOppVal = Infinity;
+      let worstVal = Infinity;
       for (let oMove of oppValid) {
         const { nextSelf, nextOpp } = simulateTurnState(
           cpuPlayer, opponentPlayer, sMove, oMove, selfMovesData, oppMovesData
         );
         const score = searchTree(nextSelf, nextOpp, maxDepth - 1);
-        worstOppVal = Math.min(worstOppVal, score);
+        worstVal = Math.min(worstVal, score);
       }
-      moveScore = worstOppVal;
+      moveScore = worstVal;
     }
 
     if (moveScore > bestScore) {
@@ -281,6 +287,9 @@ function run3TurnForeseeSearch(cpuPlayer, opponentPlayer, selfMovesData, oppMove
       bestMove = sMove;
     }
   }
+
+  return bestMove;
+}
 
   return bestMove;
 }
