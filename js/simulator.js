@@ -1,203 +1,170 @@
 /**
- * In-Browser Headless Match Simulator
+ * Headless Match Simulator Engine
  * Path: js/simulator.js
  */
 
-let simulatorMovesCache = null;
+// Cache loaded move data
+let cachedSimulatorMoves = null;
 
 async function loadSimulatorMoves() {
-  if (simulatorMovesCache) return simulatorMovesCache;
-  if (window.gameState && window.gameState.p1Moves) {
-    return {
-      ichigo: window.gameState.p1Moves,
-      nigo: window.gameState.p2Moves,
-      v3: window.gameState.p1Moves
-    };
-  }
+  if (cachedSimulatorMoves) return cachedSimulatorMoves;
+
   try {
     const res = await fetch('data/moves.json');
     if (res.ok) {
-      simulatorMovesCache = await res.json();
-      return simulatorMovesCache;
+      cachedSimulatorMoves = await res.json();
+      return cachedSimulatorMoves;
     }
   } catch (e) {
-    console.warn("Could not load moves.json for simulator.");
+    console.warn("Simulator: Could not load data/moves.json, using fallback roster.");
   }
-  return {};
+
+  // Fallback if fetch fails or running offline
+  const fallback = typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
+  cachedSimulatorMoves = {
+    'ichigo': fallback,
+    'nigo': fallback,
+    'v3': fallback
+  };
+  return cachedSimulatorMoves;
 }
 
-function getMoveRangePrioritySim(move) {
-  if (!move) return 1;
-  const range = (move.rangeType || 'MELEE').toUpperCase();
-  if (range === 'PROJECTILE') return 3;
-  if (range === 'REACH' || range === 'ROPE' || range === 'MID_RANGE') return 2;
-  return 1;
+function getSimMove(moves, key) {
+  if (moves && moves[key]) return moves[key];
+  // Offline / missing key fallback
+  return {
+    name: "Standard Punch",
+    type: "PHYSICAL",
+    chiCost: 0,
+    baseDamage: 66,
+    hitChance: 85
+  };
 }
 
-function selectCPUMoveSim(cpuPlayer, opponentPlayer, movesData, difficulty) {
-  if (cpuPlayer.isFainted) return 'DO_NOTHING';
+function selectCPUMoveSim(cpu, opp, moves, difficulty) {
+  if (cpu.isFainted) return 'DO_NOTHING';
 
-  let availableMoves = {};
-  Object.keys(movesData).forEach(key => {
-    const m = movesData[key];
-    if (m && typeof m === 'object' && (m.chiCost || 0) <= cpuPlayer.chi) {
-      availableMoves[key] = m;
-    }
+  // Filter available moves by Chi cost
+  const availableKeys = Object.keys(moves || {}).filter(k => {
+    const m = moves[k];
+    return m && (m.chiCost || 0) <= cpu.chi;
   });
 
-  if (Object.keys(availableMoves).length === 0) return 'D+J';
+  if (availableKeys.length === 0) return 'D+J';
 
-  if (typeof window.selectCPUMove === 'function') {
-    return window.selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
-  }
+  // Prioritize offensive moves during simulation
+  const offensiveKeys = availableKeys.filter(k => !k.startsWith('A+'));
+  const choices = offensiveKeys.length > 0 ? offensiveKeys : availableKeys;
 
-  const keys = Object.keys(availableMoves);
-  return keys[Math.floor(Math.random() * keys.length)] || 'D+J';
+  return choices[Math.floor(Math.random() * choices.length)];
 }
 
 async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = 'normal', p2Difficulty = 'normal') {
   const allMoves = await loadSimulatorMoves();
   const rules = window.COMBAT_RULES || {
-    FAINT_THRESHOLD: 100,
-    ROUND_RECOVERY: 13,
-    FAINT_PENALTY_IDLE_GUARD: 5,
+    STARTING_CHI: 8,
     MAX_CHI: 16,
-    OFFENSIVE_TYPES: ['MELEE', 'PROJECTILE', 'SPECIAL', 'FINISHER', 'PHYSICAL']
+    FAINT_THRESHOLD: 100,
+    HIT_BUILDUP: 25,
+    ROUND_RECOVERY: 13
   };
 
-  const p1Moves = allMoves[p1Rider.id] || allMoves['ichigo'] || {};
-  const p2Moves = allMoves[p2Rider.id] || allMoves['ichigo'] || {};
+  const p1Moves = (allMoves && allMoves[p1Rider.id]) || allMoves['ichigo'] || {};
+  const p2Moves = (allMoves && allMoves[p2Rider.id]) || allMoves['ichigo'] || {};
 
   const stats = {
     totalMatches: count,
-    p1Wins: 0, p2Wins: 0, draws: 0, totalRounds: 0,
-    p1EndLpSum: 0, p1EndChiSum: 0, p2EndLpSum: 0, p2EndChiSum: 0
+    p1Wins: 0,
+    p2Wins: 0,
+    draws: 0,
+    totalRounds: 0,
+    p1EndLpSum: 0,
+    p2EndLpSum: 0,
+    p1EndChiSum: 0,
+    p2EndChiSum: 0
   };
 
-  const hpMultiplier = (window.GAME_CONFIG && window.GAME_CONFIG.HARD_CPU_HP_MULTIPLIER) || 1.30;
-  const realGameState = window.gameState;
+  for (let matchIndex = 0; matchIndex < count; matchIndex++) {
+    let p1 = {
+      id: p1Rider.id || 'ichigo',
+      name: p1Rider.name || 'P1',
+      maxLp: p1Rider.maxLp || 1850,
+      lp: p1Rider.maxLp || 1850,
+      chi: rules.STARTING_CHI || 8,
+      maxChi: rules.MAX_CHI || 16,
+      faintMeter: 0,
+      isFainted: false
+    };
 
-  try {
-    for (let matchIndex = 0; matchIndex < count; matchIndex++) {
-      let p1MaxLp = p1Rider.maxLp || 1850;
-      let p2MaxLp = p2Rider.maxLp || 2000;
+    let p2 = {
+      id: p2Rider.id || 'nigo',
+      name: p2Rider.name || 'P2',
+      maxLp: p2Rider.maxLp || 2000,
+      lp: p2Rider.maxLp || 2000,
+      chi: rules.STARTING_CHI || 8,
+      maxChi: rules.MAX_CHI || 16,
+      faintMeter: 0,
+      isFainted: false
+    };
 
-      if (p1Difficulty === 'hard') p1MaxLp = Math.floor(p1MaxLp * hpMultiplier);
-      if (p2Difficulty === 'hard') p2MaxLp = Math.floor(p2MaxLp * hpMultiplier);
+    let roundCounter = 1;
+    const MAX_ROUNDS = 40;
 
-      let p1 = {
-        id: p1Rider.id || 'ichigo', name: p1Rider.name || 'P1', maxLp: p1MaxLp, lp: p1MaxLp,
-        chi: rules.STARTING_CHI || 8, maxChi: rules.MAX_CHI || 16, faintMeter: 0, activeBuffs: [],
-        airborneTicks: 0, airborneAppliedRound: 0, activeChargePercent: 100, isFainted: false,
-        willBeFaintedNextRound: false, tookCleanHitThisRound: false, isCPU: true
-      };
-
-      let p2 = {
-        id: p2Rider.id || 'nigo', name: p2Rider.name || 'P2', maxLp: p2MaxLp, lp: p2MaxLp,
-        chi: rules.STARTING_CHI || 8, maxChi: rules.MAX_CHI || 16, faintMeter: 0, activeBuffs: [],
-        airborneTicks: 0, airborneAppliedRound: 0, activeChargePercent: 100, isFainted: false,
-        willBeFaintedNextRound: false, tookCleanHitThisRound: false, isCPU: true
-      };
-
-      window.gameState = {
-        p1: p1,
-        p2: p2,
-        p1Moves: p1Moves,
-        p2Moves: p2Moves,
-        roundCounter: 1,
-        matchConfig: { p1Difficulty, p2Difficulty }
-      };
-
-      let roundCounter = 1;
-      const MAX_ROUNDS_LIMIT = 50;
-
-      while (p1.lp > 0 && p2.lp > 0 && roundCounter <= MAX_ROUNDS_LIMIT) {
-        window.gameState.roundCounter = roundCounter;
-        p1.roundCounter = roundCounter;
-        p2.roundCounter = roundCounter;
-
-        let p1MoveKey = selectCPUMoveSim(p1, p2, p1Moves, p1Difficulty);
-        let p2MoveKey = selectCPUMoveSim(p2, p1, p2Moves, p2Difficulty);
-
-        const defaultMove = { name: 'Do Nothing', type: 'IDLE', baseDamage: 0, chiCost: 0 };
-        const m1 = p1Moves[p1MoveKey] || defaultMove;
-        const m2 = p2Moves[p2MoveKey] || defaultMove;
-
-        let p1IsIdle = p1MoveKey === 'DO_NOTHING';
-        let p2IsIdle = p2MoveKey === 'DO_NOTHING';
-        let p1GoesFirst = false;
-
-        let p1IsS = p1MoveKey.startsWith('S');
-        let p2IsS = p2MoveKey.startsWith('S');
-        let p1IsD = p1MoveKey.startsWith('D');
-        let p2IsD = p2MoveKey.startsWith('D');
-
-        let p1RangePriority = getMoveRangePrioritySim(m1);
-        let p2RangePriority = getMoveRangePrioritySim(m2);
-
-        // SPEED PRIORITY MATCHING COMBAT.JS (Range Priority -> Move Type -> Charge Speed)
-        if (!p1IsIdle && p2IsIdle) p1GoesFirst = true;
-        else if (p1IsIdle && !p2IsIdle) p1GoesFirst = false;
-        else if (p1RangePriority > p2RangePriority) p1GoesFirst = true;
-        else if (p1RangePriority < p2RangePriority) p1GoesFirst = false;
-        else if (p1IsS && p2IsD) p1GoesFirst = true;
-        else if (p1IsD && p2IsS) p1GoesFirst = false;
-        else {
-          let p1Elapsed = (p1.activeChargePercent || 100) * 0.025;
-          let p2Elapsed = (p2.activeChargePercent || 100) * 0.025;
-          if (p1Elapsed < p2Elapsed) p1GoesFirst = true;
-          else if (p1Elapsed > p2Elapsed) p1GoesFirst = false;
-          else p1GoesFirst = Math.random() < 0.5;
-        }
-
-        let atk1 = p1GoesFirst ? p1 : p2;
-        let def1 = p1GoesFirst ? p2 : p1;
-        let move1 = p1GoesFirst ? m1 : m2;
-        let key1 = p1GoesFirst ? p1MoveKey : p2MoveKey;
-
-        let atk2 = p1GoesFirst ? p2 : p1;
-        let def2 = p1GoesFirst ? p1 : p2;
-        let move2 = p1GoesFirst ? m2 : m1;
-        let key2 = p1GoesFirst ? p2MoveKey : p1MoveKey;
-
-        let def1WasInterrupted = false;
-
-        // EXECUTE TURN
-        if (move1.type !== 'IDLE' && key1 !== 'DO_NOTHING') {
-          atk1.chi = Math.max(0, atk1.chi - (move1.chiCost || 0));
-          if (move1.type !== 'DEFENSE') {
-            let dmg = Math.floor((move1.baseDamage || 0) * Math.sqrt(0.5 + 0.5 * ((atk1.activeChargePercent || 100) / 100)));
-            def1.lp = Math.max(0, def1.lp - dmg);
-            if (dmg > 0) def1WasInterrupted = true;
-            if (key1.startsWith('D')) atk1.chi = Math.min(rules.MAX_CHI, atk1.chi + 2);
-          }
-        }
-
-        if (def2.lp > 0 && !atk2.isFainted && !def1WasInterrupted && move2.type !== 'IDLE' && key2 !== 'DO_NOTHING') {
-          atk2.chi = Math.max(0, atk2.chi - (move2.chiCost || 0));
-          if (move2.type !== 'DEFENSE') {
-            let dmg = Math.floor((move2.baseDamage || 0) * Math.sqrt(0.5 + 0.5 * ((atk2.activeChargePercent || 100) / 100)));
-            def2.lp = Math.max(0, def2.lp - dmg);
-            if (key2.startsWith('D')) atk2.chi = Math.min(rules.MAX_CHI, atk2.chi + 2);
-          }
-        }
-
-        if (p1.lp <= 0 || p2.lp <= 0) break;
-        roundCounter++;
+    while (p1.lp > 0 && p2.lp > 0 && roundCounter <= MAX_ROUNDS) {
+      // Chi regeneration per round
+      if (roundCounter > 1) {
+        p1.chi = Math.min(p1.maxChi, p1.chi + 1);
+        p2.chi = Math.min(p2.maxChi, p2.chi + 1);
       }
 
-      stats.totalRounds += Math.min(roundCounter, MAX_ROUNDS_LIMIT);
-      stats.p1EndLpSum += Math.max(0, p1.lp);
-      stats.p1EndChiSum += p1.chi;
-      stats.p2EndLpSum += Math.max(0, p2.lp);
-      stats.p2EndChiSum += p2.chi;
+      let p1Key = selectCPUMoveSim(p1, p2, p1Moves, p1Difficulty);
+      let p2Key = selectCPUMoveSim(p2, p1, p2Moves, p2Difficulty);
 
-      if (p1.lp > 0 && p2.lp <= 0) stats.p1Wins++;
-      else if (p2.lp > 0 && p1.lp <= 0) stats.p2Wins++;
-      else stats.draws++;
+      let m1 = getSimMove(p1Moves, p1Key);
+      let m2 = getSimMove(p2Moves, p2Key);
+
+      // Deduct Chi costs
+      p1.chi = Math.max(0, p1.chi - (m1.chiCost || 0));
+      p2.chi = Math.max(0, p2.chi - (m2.chiCost || 0));
+
+      // Resolve P1 Attack
+      if (m1.type !== 'IDLE' && m1.type !== 'DEFENSE') {
+        let hitRoll = Math.random() * 100 < (m1.hitChance || 80);
+        if (hitRoll) {
+          let dmg = Math.floor((m1.baseDamage || 60) * (0.85 + Math.random() * 0.30));
+          p2.lp = Math.max(0, p2.lp - dmg);
+          
+          if (p1Key.startsWith('D')) p1.chi = Math.min(p1.maxChi, p1.chi + 2);
+        }
+      }
+
+      // Resolve P2 Attack (if still standing)
+      if (p2.lp > 0 && m2.type !== 'IDLE' && m2.type !== 'DEFENSE') {
+        let hitRoll = Math.random() * 100 < (m2.hitChance || 80);
+        if (hitRoll) {
+          let dmg = Math.floor((m2.baseDamage || 60) * (0.85 + Math.random() * 0.30));
+          p1.lp = Math.max(0, p1.lp - dmg);
+
+          if (p2Key.startsWith('D')) p2.chi = Math.min(p2.maxChi, p2.chi + 2);
+        }
+      }
+
+      roundCounter++;
     }
-  } finally {
-    window.gameState = realGameState;
+
+    stats.totalRounds += Math.min(roundCounter, MAX_ROUNDS);
+    stats.p1EndLpSum += p1.lp;
+    stats.p2EndLpSum += p2.lp;
+    stats.p1EndChiSum += p1.chi;
+    stats.p2EndChiSum += p2.chi;
+
+    if (p1.lp > 0 && p2.lp <= 0) {
+      stats.p1Wins++;
+    } else if (p2.lp > 0 && p1.lp <= 0) {
+      stats.p2Wins++;
+    } else {
+      stats.draws++;
+    }
   }
 
   return {
@@ -209,14 +176,12 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 20, p1Difficulty = '
     draws: stats.draws,
     p1WinRate: ((stats.p1Wins / count) * 100).toFixed(1),
     p2WinRate: ((stats.p2Wins / count) * 100).toFixed(1),
-    avgRounds: (stats.totalRounds / count).toFixed(1),
     p1AvgLpLeft: Math.round(stats.p1EndLpSum / count),
-    p1AvgChiLeft: (stats.p1EndChiSum / count).toFixed(1),
     p2AvgLpLeft: Math.round(stats.p2EndLpSum / count),
-    p2AvgChiLeft: (stats.p2EndChiSum / count).toFixed(1)
+    p1AvgChiLeft: (stats.p1EndChiSum / count).toFixed(1),
+    p2AvgChiLeft: (stats.p2EndChiSum / count).toFixed(1),
+    avgRounds: (stats.totalRounds / count).toFixed(1)
   };
 }
 
-if (typeof window !== 'undefined') {
-  window.runBatchSimulation = runBatchSimulation;
-}
+window.runBatchSimulation = runBatchSimulation;
