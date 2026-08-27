@@ -59,3 +59,24 @@ function getMatchTimingConfig() {
 
   return { baseRoundWindow, chargeTimeRequired, extensionBonus, lateThreshold };
 }
+
+/**
+ * Rider AI Profiles Config
+ * Define unique weights and preferences per rider ID.
+ */
+window.RIDER_AI_PROFILES = {
+  ichigo: {
+    weights: { W_LP: 1.0, W_CHI: 45.0, W_FAINT: 3.5 },
+    dChargeRange: [88, 95]
+  },
+  nigo: {
+    weights: { W_LP: 1.2, W_CHI: 40.0, W_FAINT: 2.5 },
+    dChargeRange: [85, 92]
+  },
+  v3: {
+    weights: { W_LP: 1.0, W_CHI: 50.0, W_FAINT: 4.0 },
+    dChargeRange: [85, 95]
+  }
+  // Adding Rider #4 through #16 is as simple as adding new key-value entries here!
+};
+
