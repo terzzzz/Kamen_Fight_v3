@@ -1557,3 +1557,55 @@ window.startRoundCountdown = startRoundCountdown;
 window.confirmPlayerAction = confirmPlayerAction;
 window.getCPUAggressiveFallback = getCPUAggressiveFallback;
 window.getCPUMoveChoice = getCPUMoveChoice;
+
+
+/**
+ * Game Over Screen Transition Logic
+ * Add to the bottom of js/combat.js
+ */
+
+function returnToSelectScreen() {
+  // 1. Reset Game Phase
+  gameState.roundPhase = 'IDLE';
+  gameState.canContinueFromGameOver = false;
+
+  // 2. Manage Audio
+  if (typeof stopBattleBGM === 'function') stopBattleBGM();
+  if (typeof playSelectionBGM === 'function') playSelectionBGM();
+
+  // 3. Toggle Screens
+  const battleScreen = document.getElementById('battle-screen');
+  const selectScreen = document.getElementById('vs-select-screen');
+  const battleMsg = document.getElementById('battle-message');
+  
+  if (battleScreen) battleScreen.hidden = true;
+  if (battleMsg) battleMsg.hidden = true;
+  if (selectScreen) {
+    selectScreen.hidden = false;
+  }
+
+  // 4. Reset Character Select UI to Step 1
+  if (window.vsSelectionState) {
+    window.vsSelectionState.step = 1;
+    if (typeof updateSelectionUI === 'function') {
+      updateSelectionUI();
+    }
+  }
+
+  // 5. Clean up lingering battle artifacts
+  document.querySelectorAll('.damage-popup').forEach(el => el.remove());
+}
+
+// Global input handler for "PRESS ANY KEY TO CONTINUE"
+function handleGameOverInput(e) {
+  if (window.gameState && 
+      window.gameState.roundPhase === 'GAME_OVER' && 
+      window.gameState.canContinueFromGameOver) {
+    returnToSelectScreen();
+  }
+}
+
+// Bind the handler to Keyboard, Mouse Click, and Mobile Touch
+document.addEventListener('keydown', handleGameOverInput);
+document.addEventListener('click', handleGameOverInput);
+document.addEventListener('touchstart', handleGameOverInput, { passive: true });
