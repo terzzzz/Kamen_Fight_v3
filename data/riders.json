@@ -2,6 +2,7 @@
   {
     "id": "ichigo",
     "name": "Kamen Rider Ichigo",
+    "sourceFacing": "left",
     "maxLp": 1850,
     "archetype": "Balanced All-Rounder",
     "icon": "assets/images/icons/ichigo.png",
@@ -12,6 +13,7 @@
   {
     "id": "nigo",
     "name": "Kamen Rider Nigo",
+    "sourceFacing": "right",
     "maxLp": 2000,
     "archetype": "Heavy Power",
     "icon": "assets/images/icons/nigo.png",
@@ -22,16 +24,18 @@
   {
     "id": "v3",
     "name": "Kamen Rider V3",
+    "sourceFacing": "right",
     "maxLp": 1800,
     "archetype": "High CHI / Fast Combo",
     "icon": "assets/images/icons/v3.png",
     "videoFolder": "assets/videos/v3/",
-    "finisher": "V3 Double Kick",
+    "finisher": "V3 Triple Kick",
     "active": true
   },
   {
     "id": "riderman",
     "name": "Riderman",
+    "sourceFacing": "left",
     "maxLp": 1650,
     "archetype": "Low Cost Utility",
     "icon": "assets/images/icons/riderman.png",
@@ -42,6 +46,7 @@
   {
     "id": "x",
     "name": "Kamen Rider X",
+    "sourceFacing": "left",
     "maxLp": 1850,
     "archetype": "Mid-Range Weapon Guard",
     "icon": "assets/images/icons/x.png",
@@ -52,6 +57,7 @@
   {
     "id": "amazon",
     "name": "Kamen Rider Amazon",
+    "sourceFacing": "left",
     "maxLp": 1700,
     "archetype": "High Crit Speed",
     "icon": "assets/images/icons/amazon.png",
@@ -62,6 +68,7 @@
   {
     "id": "stronger",
     "name": "Kamen Rider Stronger",
+    "sourceFacing": "left",
     "maxLp": 1900,
     "archetype": "Electric Powerhouse",
     "icon": "assets/images/icons/stronger.png",
@@ -72,6 +79,7 @@
   {
     "id": "skyrider",
     "name": "Skyrider",
+    "sourceFacing": "left",
     "maxLp": 1750,
     "archetype": "Evasion & Aerial Glider",
     "icon": "assets/images/icons/skyrider.png",
@@ -82,6 +90,7 @@
   {
     "id": "super1",
     "name": "Kamen Rider Super-1",
+    "sourceFacing": "left",
     "maxLp": 1800,
     "archetype": "Multi-Hand Martial Artist",
     "icon": "assets/images/icons/super1.png",
@@ -92,6 +101,7 @@
   {
     "id": "black",
     "name": "Kamen Rider Black",
+    "sourceFacing": "left",
     "maxLp": 1850,
     "archetype": "Energy Fighter",
     "icon": "assets/images/icons/black.png",
@@ -102,6 +112,7 @@
   {
     "id": "rx",
     "name": "Kamen Rider Black RX",
+    "sourceFacing": "left",
     "maxLp": 1900,
     "archetype": "Form-Changing Tactical Brawler",
     "icon": "assets/images/icons/rx.png",
@@ -136,6 +147,7 @@
   {
     "id": "shin",
     "name": "Kamen Rider Shin",
+    "sourceFacing": "left",
     "maxLp": 2000,
     "archetype": "Berserker Tank",
     "icon": "assets/images/icons/shin.png",
@@ -146,6 +158,7 @@
   {
     "id": "zo",
     "name": "Kamen Rider ZO",
+    "sourceFacing": "left",
     "maxLp": 1800,
     "archetype": "Fast Counter-Attacker",
     "icon": "assets/images/icons/zo.png",
@@ -156,6 +169,7 @@
   {
     "id": "j",
     "name": "Kamen Rider J",
+    "sourceFacing": "left",
     "maxLp": 1850,
     "archetype": "Titan Finisher",
     "icon": "assets/images/icons/j.png",
