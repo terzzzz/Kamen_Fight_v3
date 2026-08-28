@@ -1,5 +1,5 @@
 /**
- * Main AI Memory Manager & Habit Tracker
+ * Main AI Memory Manager, Habit Tracker & Decision Engine
  * Path: js/ai.js
  */
 
@@ -84,9 +84,127 @@ window.globalAIKnowledge = {
   }
 };
 
+/**
+ * Calculates overall utility score for move evaluation
+ */
 window.calculateMoveSuccess = function(cpuPlayer, opponentPlayer, cpuMoveKey, outcomeData) {
   if (!outcomeData) return false;
   if (outcomeData.cpuWasHit && outcomeData.damageTaken > 150) return false;
   if (outcomeData.damageDealt > 0 || outcomeData.oppWasGuarded) return true;
+  if (outcomeData.debuffApplied || outcomeData.chiRefunded) return true;
   return outcomeData.faintRecovered > 0;
+};
+
+/**
+ * Core AI Selection Engine for Tactical Choice Evaluation
+ */
+window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, difficulty = 'normal') {
+  if (cpuPlayer.isFainted) return 'DO_NOTHING';
+
+  const moveKeys = Object.keys(availableMoves || {});
+  if (moveKeys.length === 0) return 'D+J';
+
+  const diff = String(difficulty).toLowerCase();
+  const riderProfile = (window.RIDER_AI_PROFILES && window.RIDER_AI_PROFILES[cpuPlayer.id]) 
+    ? window.RIDER_AI_PROFILES[cpuPlayer.id] 
+    : { weights: { W_LP: 1.0, W_CHI: 8.0, W_FAINT: 2.0 }, dChargeRange: [85, 95] };
+
+  // --- EASY DIFFICULTY ---
+  if (diff === 'easy') {
+    const roll = Math.random();
+    if (roll < 0.15) return 'DO_NOTHING';
+    const physicalKeys = moveKeys.filter(k => k.startsWith('D+'));
+    if (physicalKeys.length > 0 && roll < 0.75) {
+      return physicalKeys[Math.floor(Math.random() * physicalKeys.length)];
+    }
+    return moveKeys[Math.floor(Math.random() * moveKeys.length)];
+  }
+
+  // --- NORMAL DIFFICULTY ---
+  if (diff === 'normal') {
+    const roll = Math.random();
+    const specialKeys = moveKeys.filter(k => k.startsWith('S+') && (availableMoves[k].chiCost || 0) <= cpuPlayer.chi);
+    const physicalKeys = moveKeys.filter(k => k.startsWith('D+'));
+    const utilityKeys = moveKeys.filter(k => k.startsWith('W+'));
+
+    if (cpuPlayer.faintMeter > 40 && utilityKeys.some(k => availableMoves[k].faintRecovery)) {
+      const recKey = utilityKeys.find(k => availableMoves[k].faintRecovery);
+      if (recKey) return recKey;
+    }
+
+    if (roll < 0.35 && specialKeys.length > 0 && cpuPlayer.chi >= 3) {
+      return specialKeys[Math.floor(Math.random() * specialKeys.length)];
+    }
+    if (roll < 0.85 && physicalKeys.length > 0) {
+      return physicalKeys[Math.floor(Math.random() * physicalKeys.length)];
+    }
+    return moveKeys[Math.floor(Math.random() * moveKeys.length)];
+  }
+
+  // --- HARD DIFFICULTY ---
+  let bestKey = moveKeys[0];
+  let bestScore = -99999;
+
+  const oppId = (opponentPlayer && opponentPlayer.id) ? opponentPlayer.id : 'human';
+  const oppProfile = window.globalAIKnowledge.playerProfiles[oppId];
+
+  moveKeys.forEach(key => {
+    const m = availableMoves[key];
+    if (!m) return;
+
+    let score = 0;
+
+    // 1. Damage Output Weighting
+    const baseDmg = m.baseDamage || 0;
+    const hitRate = (m.hitChance || 80) / 100;
+    score += (baseDmg * hitRate) * riderProfile.weights.W_LP;
+
+    // 2. Chi Efficiency Weighting
+    const cost = m.chiCost || 0;
+    if (cost === 0 && key.startsWith('D')) {
+      const chiGain = (m.chiRefundOnHit || 0) + 2;
+      score += chiGain * riderProfile.weights.W_CHI;
+    } else {
+      score -= cost * (riderProfile.weights.W_CHI * 0.5);
+    }
+
+    // 3. Faint Meter Management
+    if (m.faintRecovery && cpuPlayer.faintMeter > 30) {
+      score += (m.faintRecovery * (cpuPlayer.faintMeter / 100)) * riderProfile.weights.W_FAINT;
+    }
+    if (m.baseFaintDamage) {
+      score += (m.baseFaintDamage * hitRate) * (riderProfile.weights.W_FAINT * 0.5);
+    }
+
+    // 4. Debuff & Utility Valuation
+    if (m.debuff && opponentPlayer && !opponentPlayer.activeBuffs?.some(b => b.id === m.debuff.id)) {
+      score += 45;
+    }
+
+    // 5. Historical Win Rate Adjustment
+    const memKey = `${cpuPlayer.id}_vs_${oppId}_${key}`;
+    const memData = window.globalAIKnowledge.memoryStore[memKey];
+    if (memData && memData.uses > 3) {
+      const winRatio = memData.wins / memData.uses;
+      score += winRatio * 30;
+    }
+
+    // 6. Opponent Habit Exploitation
+    if (oppProfile && oppProfile.totalRounds > 5) {
+      const guardRatio = oppProfile.guardCount / oppProfile.totalRounds;
+      if (guardRatio > 0.4 && m.unblockable) {
+        score += 50;
+      }
+    }
+
+    // Small random variance to keep CPU unpredictable
+    score += Math.random() * 8;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestKey = key;
+    }
+  });
+
+  return bestKey;
 };
