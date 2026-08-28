@@ -59,11 +59,18 @@ function stopBattleBGM() {
   }
 }
 
+function changeBGMVolume(val) {
+  const volume = parseFloat(val);
+  if (selectionBGM) selectionBGM.volume = volume;
+  if (battleBGM) battleBGM.volume = volume;
+}
+
 // Fallback Roster Storage
 let AVAILABLE_RIDERS = [
   { id: 'ichigo', name: 'Kamen Rider Ichigo', icon: 'assets/images/icons/ichigo.png', maxLp: 1850 },
   { id: 'nigo', name: 'Kamen Rider Nigo', icon: 'assets/images/icons/nigo.png', maxLp: 2000 },
-  { id: 'v3', name: 'Kamen Rider V3', icon: 'assets/images/icons/v3.png', maxLp: 1950 }
+  { id: 'v3', name: 'Kamen Rider V3', icon: 'assets/images/icons/v3.png', maxLp: 1800 },
+  { id: 'riderman', name: 'Riderman', icon: 'assets/images/icons/riderman.png', maxLp: 1650 }
 ];
 
 let vsSelectionState = {
@@ -102,19 +109,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Bind Simulation Modal Close Button
   const closeSimBtn = document.getElementById('btn-close-sim-modal');
   if (closeSimBtn) {
-    closeSimBtn.addEventListener('click', () => {
-      const modal = document.getElementById('sim-modal');
-      if (modal) {
-        modal.hidden = true;
-        modal.style.display = 'none';
-      }
-      // Re-enable button if on active step
-      const btn = document.getElementById('btn-simulate-matches');
-      if (btn && vsSelectionState.step > 1) {
-        btn.disabled = false;
-      }
-    });
+    closeSimBtn.addEventListener('click', closeSimModal);
   }
+
+  // Close modal on Escape key
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeSimModal();
+    }
+  });
 
   // Bypass Mobile Autoplay Restrictions on First Touch
   const unlockAudio = () => {
@@ -128,6 +131,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('touchstart', unlockAudio, { passive: true });
   window.addEventListener('keydown', unlockAudio);
 });
+
+function closeSimModal() {
+  const modal = document.getElementById('sim-modal');
+  if (modal) {
+    modal.hidden = true;
+    modal.style.display = 'none';
+  }
+  const btn = document.getElementById('btn-simulate-matches');
+  if (btn && vsSelectionState.step > 1) {
+    btn.disabled = false;
+  }
+}
 
 function cycleRider(playerKey, direction) {
   if (!AVAILABLE_RIDERS || AVAILABLE_RIDERS.length === 0) return;
@@ -201,7 +216,7 @@ function updateSelectionUI() {
 
   const p1ImgEl = document.getElementById('p1-img');
   if (p1ImgEl) p1ImgEl.src = p1.icon;
-  
+
   const p1NameEl = document.getElementById('p1-name-display');
   if (p1NameEl) p1NameEl.textContent = p1.name;
 
@@ -332,7 +347,6 @@ async function handleSimulateMatches() {
   const p1Diff = vsSelectionState.p1IsCPU ? vsSelectionState.p1Difficulty : 'normal';
   const p2Diff = vsSelectionState.p2Difficulty;
 
-  // Lock button during calculation to prevent double clicks
   if (simBtn) {
     simBtn.disabled = true;
   }
@@ -341,7 +355,6 @@ async function handleSimulateMatches() {
   modal.hidden = false;
   modal.style.display = 'flex';
 
-  // Micro-tick delay so browser renders the "Running..." text before thread locks
   await new Promise(resolve => setTimeout(resolve, 50));
 
   try {
@@ -401,7 +414,6 @@ async function handleSimulateMatches() {
     console.error("Batch Simulation Error:", err);
     resultsBody.innerHTML = `<p style="color:#ff2a5f; text-align:center;">Simulation Failed: ${err.message}</p>`;
   } finally {
-    // Always re-enable button after calculation finishes or fails
     if (simBtn && vsSelectionState.step > 1) {
       simBtn.disabled = false;
     }
@@ -429,9 +441,15 @@ function validateAndStartMatch() {
   }
 }
 
-function changeBGMVolume(val) {
-  const volume = parseFloat(val);
-  if (selectionBGM) {
-    selectionBGM.volume = volume;
-  }
-}
+// Global Exports
+window.playSelectionBGM = playSelectionBGM;
+window.stopSelectionBGM = stopSelectionBGM;
+window.playBattleBGM = playBattleBGM;
+window.stopBattleBGM = stopBattleBGM;
+window.changeBGMVolume = changeBGMVolume;
+window.cycleRider = cycleRider;
+window.toggleControlType = toggleControlType;
+window.toggleDifficulty = toggleDifficulty;
+window.handleConfirmStep = handleConfirmStep;
+window.handleBackStep = handleBackStep;
+window.validateAndStartMatch = validateAndStartMatch;
