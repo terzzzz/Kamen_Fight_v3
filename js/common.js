@@ -55,7 +55,7 @@ function getMatchTimingConfig() {
 }
 
 /**
- * Balanced AI Profiles: Rebalanced W_CHI so damage output & KOs take priority
+ * Balanced AI Profiles
  */
 window.RIDER_AI_PROFILES = {
   ichigo: {
@@ -68,6 +68,10 @@ window.RIDER_AI_PROFILES = {
   },
   v3: {
     weights: { W_LP: 1.1, W_CHI: 10.0, W_FAINT: 2.5 },
+    dChargeRange: [85, 95]
+  },
+  riderman: {
+    weights: { W_LP: 1.2, W_CHI: 9.0, W_FAINT: 2.2 },
     dChargeRange: [85, 95]
   }
 };
