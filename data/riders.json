@@ -2,7 +2,7 @@
   {
     "id": "ichigo",
     "name": "Kamen Rider Ichigo",
-    "sourceFacing": "left",
+    "sourceFacing": "right",
     "maxLp": 1850,
     "archetype": "Balanced All-Rounder",
     "icon": "assets/images/icons/ichigo.png",
@@ -13,7 +13,7 @@
   {
     "id": "nigo",
     "name": "Kamen Rider Nigo",
-    "sourceFacing": "right",
+    "sourceFacing": "left",
     "maxLp": 2000,
     "archetype": "Heavy Power",
     "icon": "assets/images/icons/nigo.png",
@@ -24,7 +24,7 @@
   {
     "id": "v3",
     "name": "Kamen Rider V3",
-    "sourceFacing": "left",
+    "sourceFacing": "right",
     "maxLp": 1800,
     "archetype": "High CHI / Fast Combo",
     "icon": "assets/images/icons/v3.png",
@@ -35,7 +35,7 @@
   {
     "id": "riderman",
     "name": "Riderman",
-    "sourceFacing": "left",
+    "sourceFacing": "right",
     "maxLp": 1650,
     "archetype": "Low Cost Utility",
     "icon": "assets/images/icons/riderman.png",
