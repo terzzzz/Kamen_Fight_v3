@@ -22,7 +22,8 @@ async function loadSimulatorMoves() {
   cachedSimulatorMoves = {
     'ichigo': fallback,
     'nigo': fallback,
-    'v3': fallback
+    'v3': fallback,
+    'riderman': fallback
   };
   return cachedSimulatorMoves;
 }
@@ -31,6 +32,14 @@ function getSimMove(moves, key) {
   if (moves && moves[key]) return moves[key];
   if (key === 'DO_NOTHING') return { name: "Do Nothing", type: "IDLE", chiCost: 0, baseDamage: 0, hitChance: 100 };
   return { name: "Standard Punch", type: "PHYSICAL", chiCost: 0, baseDamage: 66, hitChance: 85 };
+}
+
+function getSimMovePriority(move) {
+  if (!move) return 1;
+  const range = (move.rangeType || 'MELEE').toUpperCase();
+  if (range === 'PROJECTILE') return 3;
+  if (range === 'REACH' || range === 'ROPE' || range === 'MID_RANGE') return 2;
+  return 1;
 }
 
 function selectCPUMoveSim(cpu, opp, moves, difficulty) {
@@ -75,14 +84,12 @@ function selectCPUMoveSim(cpu, opp, moves, difficulty) {
     return offensiveKeys.length > 0 ? offensiveKeys[Math.floor(Math.random() * offensiveKeys.length)] : 'D+J';
   }
 
-  // EASY AI: Active enough to finish matches, but relies on low-damage basic physical strikes and rarely uses high-tier Specials
+  // EASY AI: Low-tier basic strikes
   const roll = Math.random();
-  if (roll < 0.15) return 'DO_NOTHING'; // 15% slight hesitation
+  if (roll < 0.15) return 'DO_NOTHING';
   if (roll < 0.70 && physicalKeys.length > 0) {
-    // 55% simple basic physical pokes (D+J, D+K)
     return physicalKeys[Math.floor(Math.random() * physicalKeys.length)];
   }
-  // 30% random affordable action
   return availableKeys[Math.floor(Math.random() * availableKeys.length)];
 }
 
@@ -146,8 +153,22 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
       let m1 = getSimMove(p1Moves, p1Key);
       let m2 = getSimMove(p2Moves, p2Key);
 
-      // Alternate turn initiative each round to remove first-strike bias
-      let p1GoesFirst = (roundCounter % 2 === 1);
+      // Range & Category Based Turn Initiative Resolution
+      let p1Pri = getSimMovePriority(m1);
+      let p2Pri = getSimMovePriority(m2);
+
+      let p1GoesFirst = false;
+      if (p1Pri > p2Pri) {
+        p1GoesFirst = true;
+      } else if (p1Pri < p2Pri) {
+        p1GoesFirst = false;
+      } else if (p1Key.startsWith('S') && p2Key.startsWith('D')) {
+        p1GoesFirst = true;
+      } else if (p1Key.startsWith('D') && p2Key.startsWith('S')) {
+        p1GoesFirst = false;
+      } else {
+        p1GoesFirst = (roundCounter % 2 === 1);
+      }
 
       let first = p1GoesFirst ? p1 : p2;
       let second = p1GoesFirst ? p2 : p1;
@@ -158,6 +179,10 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
 
       // Execute First Attacker
       first.chi = Math.max(0, first.chi - (mFirst.chiCost || 0));
+      if (mFirst.faintRecovery && first.faintMeter > 0) {
+        first.faintMeter = Math.max(0, first.faintMeter - mFirst.faintRecovery);
+      }
+
       if (mFirst.baseDamage > 0 && keyFirst !== 'DO_NOTHING' && !first.isFainted) {
         let hitRoll = second.isFainted || keySecond === 'DO_NOTHING' || mSecond.type === 'DEFENSE' || (Math.random() * 100 < (mFirst.hitChance || 80));
         if (hitRoll) {
@@ -173,11 +198,16 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
             }
           }
           if (keyFirst.startsWith('D')) first.chi = Math.min(first.maxChi, first.chi + 2);
+          if (mFirst.chiRefundOnHit) first.chi = Math.min(first.maxChi, first.chi + mFirst.chiRefundOnHit);
         }
       }
 
       // Execute Second Attacker (if alive and not fainted)
       second.chi = Math.max(0, second.chi - (mSecond.chiCost || 0));
+      if (mSecond.faintRecovery && second.faintMeter > 0) {
+        second.faintMeter = Math.max(0, second.faintMeter - mSecond.faintRecovery);
+      }
+
       if (second.lp > 0 && mSecond.baseDamage > 0 && keySecond !== 'DO_NOTHING' && !second.isFainted) {
         let hitRoll = first.isFainted || keyFirst === 'DO_NOTHING' || mFirst.type === 'DEFENSE' || (Math.random() * 100 < (mSecond.hitChance || 80));
         if (hitRoll) {
@@ -193,6 +223,7 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
             }
           }
           if (keySecond.startsWith('D')) second.chi = Math.min(second.maxChi, second.chi + 2);
+          if (mSecond.chiRefundOnHit) second.chi = Math.min(second.maxChi, second.chi + mSecond.chiRefundOnHit);
         }
       }
 
