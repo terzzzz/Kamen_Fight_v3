@@ -26,20 +26,32 @@ function unlockMobileVideos() {
   mobileVideosUnlocked = true;
 }
 
-// ORIENTATION RESOLVER
+/**
+ * ORIENTATION RESOLVER
+ * Rules:
+ * - P1 is on the LEFT side of screen, must face RIGHT.
+ * - P2 is on the RIGHT side of screen, must face LEFT.
+ */
 function getTransformFlip(player, playerKey, moveObj = null) {
   if (!player) return 'scaleX(1)';
 
-  // Data-driven Priority: Move-level sourceFacing -> Player sourceFacing -> Default 'left'
+  // Priority: Move-level sourceFacing -> Player sourceFacing -> Default 'right'
   const nativeFacing = (moveObj && moveObj.sourceFacing) 
     ? moveObj.sourceFacing 
-    : ((player && player.sourceFacing) ? player.sourceFacing : 'left');
+    : ((player && player.sourceFacing) ? player.sourceFacing : 'right');
 
   let shouldFlip = false;
+
   if (nativeFacing === 'left') {
-    shouldFlip = (playerKey === 'p1'); // Left-facing asset flips for P1 to face right
+    // Asset naturally faces LEFT.
+    // P1 (facing RIGHT) -> Must Flip!
+    // P2 (facing LEFT)  -> No Flip needed.
+    shouldFlip = (playerKey === 'p1');
   } else {
-    shouldFlip = (playerKey === 'p2'); // Right-facing asset flips for P2 to face left
+    // Asset naturally faces RIGHT (Default for Ichigo, V3, Riderman).
+    // P1 (facing RIGHT) -> No Flip needed.
+    // P2 (facing LEFT)  -> Must Flip!
+    shouldFlip = (playerKey === 'p2');
   }
 
   // Move-specific manual mirror toggle
@@ -98,6 +110,7 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
       actionLabel.hidden = !actionName;
     }
 
+    // FIXED: Compare p1.id to p2.id
     const isMirrorMatch = gameState.p1 && gameState.p2 && (gameState.p1.id === gameState.p2.id);
 
     centerBox.hidden = false;
@@ -106,7 +119,6 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
     centerVid.setAttribute('playsinline', '');
     centerVid.setAttribute('webkit-playsinline', '');
 
-    // Ensure mirror match palette is strictly applied to P2 and removed for P1
     centerVid.classList.toggle('p2-mirror-palette', playerKey === 'p2' && isMirrorMatch);
     centerVid.style.transform = getTransformFlip(player, playerKey, moveObj);
 
@@ -199,6 +211,7 @@ function updateCharacterMedia(playerKey, stateType) {
 
   videoEl.style.transform = getTransformFlip(player, playerKey, currentMove);
 
+  // FIXED: Compare p1.id to p2.id
   const isMirrorMatch = gameState.p1 && gameState.p2 && (gameState.p1.id === gameState.p2.id);
 
   videoEl.muted = true;
