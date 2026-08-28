@@ -157,5 +157,133 @@
     "A+J": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
     "A+K": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
     "A+L": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" }
+  },
+  "riderman": {
+    "W+I": {
+      "name": "High Leap",
+      "type": "UTILITY",
+      "chiCost": 3,
+      "baseDamage": 0,
+      "hitChance": 100,
+      "video": "jump.mp4",
+      "grantsAirborne": 2,
+      "buff": {
+        "id": "airborne_evasion",
+        "label": "AIR (+20% EVS)",
+        "type": "speed",
+        "duration": 2
+      }
+    },
+    "W+J": {
+      "name": "Target Lock",
+      "type": "UTILITY",
+      "chiCost": 2,
+      "baseDamage": 0,
+      "hitChance": 100,
+      "video": "target_lock.mp4",
+      "buff": {
+        "id": "accuracy_focus",
+        "label": "FOCUS (+20% HIT)",
+        "type": "accuracy",
+        "duration": 2
+      }
+    },
+    "W+K": {
+      "name": "Battle Cry",
+      "type": "UTILITY",
+      "chiCost": 2,
+      "baseDamage": 0,
+      "hitChance": 100,
+      "video": "battle_cry.mp4",
+      "faintRecovery": 15
+    },
+    "W+L": {
+      "name": "Rope Arm Tie-Up",
+      "type": "UTILITY",
+      "rangeType": "REACH",
+      "chiCost": 5,
+      "baseDamage": 40,
+      "hitChance": 85,
+      "video": "rope_tie.mp4",
+      "debuff": {
+        "id": "rope_bind",
+        "label": "BIND (-30% CHG SPEED)",
+        "type": "speed",
+        "duration": 2
+      }
+    },
+    "D+J": {
+      "name": "Standard Punch",
+      "type": "PHYSICAL",
+      "chiCost": 0,
+      "baseDamage": 65,
+      "hitChance": 80,
+      "video": "punch.mp4"
+    },
+    "D+K": {
+      "name": "Standard Kick",
+      "type": "PHYSICAL",
+      "chiCost": 0,
+      "baseDamage": 80,
+      "hitChance": 80,
+      "video": "kick.mp4"
+    },
+    "D+L": {
+      "name": "Cassette Combo",
+      "type": "PHYSICAL",
+      "chiCost": 1,
+      "baseDamage": 125,
+      "hitChance": 78,
+      "video": "combo_attack.mp4"
+    },
+    "D+I": {
+      "name": "Rope Arm Hook",
+      "type": "PHYSICAL",
+      "rangeType": "REACH",
+      "chiCost": 2,
+      "baseDamage": 90,
+      "hitChance": 82,
+      "video": "hook_arm.mp4",
+      "chiRefundOnHit": 3
+    },
+    "S+J": {
+      "name": "Riderman Kick",
+      "type": "SPECIAL",
+      "chiCost": 4,
+      "baseDamage": 210,
+      "hitChance": 78,
+      "video": "rider_kick.mp4"
+    },
+    "S+K": {
+      "name": "Drill Arm Break",
+      "type": "SPECIAL",
+      "rangeType": "REACH",
+      "chiCost": 6,
+      "baseDamage": 270,
+      "hitChance": 72,
+      "video": "drill_arm.mp4"
+    },
+    "S+L": {
+      "name": "Power Arm Strike",
+      "type": "SPECIAL",
+      "rangeType": "REACH",
+      "chiCost": 7,
+      "baseDamage": 400,
+      "hitChance": 70,
+      "video": "power_arm.mp4"
+    },
+    "S+I": {
+      "name": "Hook Finisher",
+      "type": "SPECIAL",
+      "rangeType": "REACH",
+      "chiCost": 10,
+      "baseDamage": 520,
+      "hitChance": 75,
+      "video": "hook.mp4"
+    },
+    "A+I": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
+    "A+J": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
+    "A+K": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
+    "A+L": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" }
   }
 }
