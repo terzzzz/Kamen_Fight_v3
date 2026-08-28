@@ -24,7 +24,7 @@
   {
     "id": "v3",
     "name": "Kamen Rider V3",
-    "sourceFacing": "right",
+    "sourceFacing": "left",
     "maxLp": 1800,
     "archetype": "High CHI / Fast Combo",
     "icon": "assets/images/icons/v3.png",
