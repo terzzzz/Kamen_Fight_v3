@@ -69,6 +69,11 @@
 
       const wasTargetFainted = step.def.isFainted || step.def.faintMeter >= rules.FAINT_THRESHOLD || step.def.cashedInFaint;
 
+      // Process Faint Recovery Utility Moves (e.g., W+K Battle Cry)
+      if (step.move.faintRecovery && step.move.faintRecovery > 0) {
+        step.atk.faintMeter = Math.max(0, step.atk.faintMeter - step.move.faintRecovery);
+      }
+
       if (step.move.type === 'DEFENSE') {
         const penalty = (step.move.chiCost || 0) > 0 ? rules.FAINT_PENALTY_CHI_GUARD : rules.FAINT_PENALTY_STANDARD_GUARD;
         step.atk.faintMeter = Math.min(rules.FAINT_THRESHOLD, step.atk.faintMeter + penalty);
@@ -77,7 +82,7 @@
       }
 
       let hitRate = ((step.move.hitChance || 80) / 100);
-      if (step.atk.activeBuffs && step.atk.activeBuffs.some(b => b.id === 'arm_calibration' || b.id === 'red_lamp_boost')) {
+      if (step.atk.activeBuffs && step.atk.activeBuffs.some(b => b.id === 'arm_calibration' || b.id === 'red_lamp_boost' || b.id === 'accuracy_focus')) {
         hitRate = Math.min(1.0, hitRate + 0.15);
       }
 
@@ -100,9 +105,15 @@
         if (idx === 0) turn1Interrupted = true;
       }
 
+      // Process Standard D-Tree Chi Generation
       if (step.key.startsWith('D')) {
         const chiGain = (step.key === 'D+J' || step.key === 'D+K') ? 2 : 3;
         step.atk.chi = Math.min(rules.MAX_CHI, step.atk.chi + Math.floor(chiGain * hitRate));
+      }
+
+      // Process Special Move Chi Refunds (e.g., Riderman D+I Rope Arm Hook)
+      if (step.move.chiRefundOnHit && step.move.chiRefundOnHit > 0) {
+        step.atk.chi = Math.min(rules.MAX_CHI, step.atk.chi + Math.floor(step.move.chiRefundOnHit * hitRate));
       }
     });
 
