@@ -30,10 +30,10 @@ function unlockMobileVideos() {
 function getTransformFlip(player, playerKey, moveObj = null) {
   if (!player) return 'scaleX(1)';
 
-  // Priority: Move-level sourceFacing -> Player sourceFacing -> ID Fallback
+  // Data-driven Priority: Move-level sourceFacing -> Player sourceFacing -> Default 'left'
   const nativeFacing = (moveObj && moveObj.sourceFacing) 
     ? moveObj.sourceFacing 
-    : (player.sourceFacing || (player.id === 'nigo' ? 'right' : 'left'));
+    : ((player && player.sourceFacing) ? player.sourceFacing : 'left');
 
   let shouldFlip = false;
   if (nativeFacing === 'left') {
