@@ -2,7 +2,7 @@
   {
     "id": "ichigo",
     "name": "Kamen Rider Ichigo",
-    "sourceFacing": "right",
+    "sourceFacing": "left",
     "maxLp": 1850,
     "archetype": "Balanced All-Rounder",
     "icon": "assets/images/icons/ichigo.png",
@@ -13,7 +13,7 @@
   {
     "id": "nigo",
     "name": "Kamen Rider Nigo",
-    "sourceFacing": "left",
+    "sourceFacing": "right",
     "maxLp": 2000,
     "archetype": "Heavy Power",
     "icon": "assets/images/icons/nigo.png",
