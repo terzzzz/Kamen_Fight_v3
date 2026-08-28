@@ -1748,4 +1748,3 @@ window.addEventListener('DOMContentLoaded', () => {
   bindKeyboardInputs();
   bindCommandButtons();
 });
- 
