@@ -31,5 +31,16 @@
     "videoFolder": "assets/videos/v3/",
     "finisher": "V3 Triple Kick",
     "active": true
+  },
+  {
+    "id": "riderman",
+    "name": "Riderman",
+    "sourceFacing": "left",
+    "maxLp": 1650,
+    "archetype": "Low Cost Utility",
+    "icon": "assets/images/icons/riderman.png",
+    "videoFolder": "assets/videos/riderman/",
+    "finisher": "Hook Finisher",
+    "active": true
   }
 ]
