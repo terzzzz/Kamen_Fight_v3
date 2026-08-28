@@ -39,7 +39,6 @@ var DO_NOTHING_MOVE = DO_NOTHING_MOVE || {
   video: "idle.mp4"
 };
 
-// In FALLBACK_ICHIGO_MOVES:
 var FALLBACK_ICHIGO_MOVES = {
   "W+I": { name: "Rider High Jump", type: "UTILITY", chiCost: 3, baseDamage: 0, hitChance: 100, video: "jump.mp4", grantsAirborne: 2 },
   "W+J": { name: "Typhoon Charge", type: "UTILITY", chiCost: 3, baseDamage: 0, hitChance: 100, video: "charge_up.mp4", buff: { id: "typhoon_speed", label: "CHARGE (+25% SPEED)", type: "speed", duration: 3 } },
@@ -88,6 +87,22 @@ if (!window.gameState) {
       chargeInterval: null
     }
   };
+}
+
+function getAttackerChiGainOnHit(atkMove, atkMoveKey) {
+  if (!atkMove || !atkMoveKey) return 0;
+
+  if (typeof atkMove.chiRefundOnHit === 'number' && atkMove.chiRefundOnHit > 0) {
+    return atkMove.chiRefundOnHit;
+  }
+
+  if (atkMoveKey.startsWith('D')) {
+    const cost = atkMove.chiCost || 0;
+    if (cost === 0) return 2;
+    if (cost === 1) return 3;
+  }
+
+  return 0;
 }
 
 function getMoveRangePriority(move) {
@@ -1227,14 +1242,12 @@ async function executeTurnResolutionPhase() {
           }
           defender1.lp = Math.max(0, defender1.lp - result.finalDmg);
 
-          if (key1.startsWith('D') && (move1.chiCost || 0) <= 0) {
-            const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
-            attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain);
+          const chiGain1 = getAttackerChiGainOnHit(move1, key1);
+          if (chiGain1 > 0) {
+            attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain1);
+            triggerFloatingText(atkKey1, `CHI +${chiGain1}!`, 'heal');
           }
-          if (move1.chiRefundOnHit && move1.chiRefundOnHit > 0) {
-            attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + move1.chiRefundOnHit);
-            triggerFloatingText(atkKey1, `CHI +${move1.chiRefundOnHit}!`, 'heal');
-          }
+
           updateHUD();
 
           triggerStaggeredPopups(defKey1, [
@@ -1253,14 +1266,12 @@ async function executeTurnResolutionPhase() {
 
           defender1.lp = Math.max(0, defender1.lp - result.finalDmg);
 
-          if (key1.startsWith('D') && (move1.chiCost || 0) <= 0) {
-            const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
-            attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain);
+          const chiGain1 = getAttackerChiGainOnHit(move1, key1);
+          if (chiGain1 > 0) {
+            attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain1);
+            triggerFloatingText(atkKey1, `CHI +${chiGain1}!`, 'heal');
           }
-          if (move1.chiRefundOnHit && move1.chiRefundOnHit > 0) {
-            attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + move1.chiRefundOnHit);
-            triggerFloatingText(atkKey1, `CHI +${move1.chiRefundOnHit}!`, 'heal');
-          }
+
           updateHUD();
 
           triggerStaggeredPopups(defKey1, [
@@ -1344,14 +1355,12 @@ async function executeTurnResolutionPhase() {
         }
         defender2.lp = Math.max(0, defender2.lp - result.finalDmg);
 
-        if (key2.startsWith('D') && (move2.chiCost || 0) <= 0) {
-          const chiGain = (key2 === 'D+J' || key2 === 'D+K') ? 2 : 3;
-          attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain);
+        const chiGain2 = getAttackerChiGainOnHit(move2, key2);
+        if (chiGain2 > 0) {
+          attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain2);
+          triggerFloatingText(atkKey2, `CHI +${chiGain2}!`, 'heal');
         }
-        if (move2.chiRefundOnHit && move2.chiRefundOnHit > 0) {
-          attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + move2.chiRefundOnHit);
-          triggerFloatingText(atkKey2, `CHI +${move2.chiRefundOnHit}!`, 'heal');
-        }
+
         updateHUD();
 
         triggerStaggeredPopups(defKey2, [
@@ -1368,14 +1377,12 @@ async function executeTurnResolutionPhase() {
 
         defender2.lp = Math.max(0, defender2.lp - result.finalDmg);
 
-        if (key2.startsWith('D') && (move2.chiCost || 0) <= 0) {
-          const chiGain = (key2 === 'D+J' || key2 === 'D+K') ? 2 : 3;
-          attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain);
+        const chiGain2 = getAttackerChiGainOnHit(move2, key2);
+        if (chiGain2 > 0) {
+          attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain2);
+          triggerFloatingText(atkKey2, `CHI +${chiGain2}!`, 'heal');
         }
-        if (move2.chiRefundOnHit && move2.chiRefundOnHit > 0) {
-          attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + move2.chiRefundOnHit);
-          triggerFloatingText(atkKey2, `CHI +${move2.chiRefundOnHit}!`, 'heal');
-        }
+
         updateHUD();
 
         triggerStaggeredPopups(defKey2, [
@@ -1552,8 +1559,8 @@ function startBattle(matchConfig) {
       gameState.p2Moves = typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
     }
 
-const p1Rider = matchConfig.p1Rider || { id: 'ichigo', name: 'Kamen Rider Ichigo', maxLp: 1850, sourceFacing: 'left' };
-const p2Rider = matchConfig.p2Rider || { id: 'nigo', name: 'Kamen Rider Nigo', maxLp: 2000, sourceFacing: 'right' };
+    const p1Rider = matchConfig.p1Rider || { id: 'ichigo', name: 'Kamen Rider Ichigo', maxLp: 1850, sourceFacing: 'left' };
+    const p2Rider = matchConfig.p2Rider || { id: 'nigo', name: 'Kamen Rider Nigo', maxLp: 2000, sourceFacing: 'right' };
 
     const rules = window.COMBAT_RULES || COMBAT_RULES;
     const hpMultiplier = (window.GAME_CONFIG && window.GAME_CONFIG.HARD_CPU_HP_MULTIPLIER) || 1.30;
@@ -1567,7 +1574,7 @@ const p2Rider = matchConfig.p2Rider || { id: 'nigo', name: 'Kamen Rider Nigo', m
     gameState.p1 = {
       id: p1Rider.id || 'ichigo',
       name: p1Rider.name || 'Kamen Rider Ichigo',
-      sourceFacing: p1Rider.sourceFacing || 'right',
+      sourceFacing: p1Rider.sourceFacing || 'left',
       isCPU: !!matchConfig.p1IsCPU,
       maxLp: p1MaxLp,
       lp: p1MaxLp,
@@ -1587,7 +1594,7 @@ const p2Rider = matchConfig.p2Rider || { id: 'nigo', name: 'Kamen Rider Nigo', m
     gameState.p2 = {
       id: p2Rider.id || 'nigo',
       name: p2Rider.name || 'Kamen Rider Nigo',
-      sourceFacing: p2Rider.sourceFacing || 'left',
+      sourceFacing: p2Rider.sourceFacing || 'right',
       isCPU: !!matchConfig.p2IsCPU,
       maxLp: p2MaxLp,
       lp: p2MaxLp,
