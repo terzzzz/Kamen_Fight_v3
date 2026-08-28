@@ -41,21 +41,21 @@ var DO_NOTHING_MOVE = DO_NOTHING_MOVE || {
 
 var FALLBACK_ICHIGO_MOVES = {
   "W+I": { name: "Rider High Jump", type: "UTILITY", chiCost: 3, baseDamage: 0, hitChance: 100, video: "jump.mp4", grantsAirborne: 2 },
-  "W+J": { name: "Typhoon Charge", type: "UTILITY", chiCost: 3, baseDamage: 0, hitChance: 100, video: "charge_up.mp4", buff: { id: "charge_speed", label: "CHARGE SPEED +25%", type: "speed", duration: 3 } },
-  "W+K": { name: "Typhoon Focus", type: "UTILITY", chiCost: 2, baseDamage: 0, hitChance: 100, video: "charge_up.mp4", buff: { id: "focus", label: "S-ATK +20%", type: "attack", duration: 2 } },
-  "W+L": { name: "Typhoon Emission", type: "UTILITY", chiCost: 1, baseDamage: 0, hitChance: 100, video: "mind.mp4", faintRecovery: 15 },
-  "D+J": { name: "Standard Punch", type: "PHYSICAL", chiCost: 0, baseDamage: 66, hitChance: 85, video: "punch.mp4" },
-  "D+K": { name: "Standard Kick", type: "PHYSICAL", chiCost: 0, baseDamage: 88, hitChance: 88, video: "kick.mp4" },
-  "D+L": { name: "Combo Punch", type: "PHYSICAL", chiCost: 1, baseDamage: 132, hitChance: 82, video: "combo_punch.mp4" },
-  "D+I": { name: "Combo Kick", type: "PHYSICAL", chiCost: 1, baseDamage: 121, hitChance: 85, video: "combo_kick.mp4", unmirrored: true },
+  "W+J": { name: "Typhoon Charge", type: "UTILITY", chiCost: 3, baseDamage: 0, hitChance: 100, video: "charge_up.mp4", buff: { id: "typhoon_speed", label: "CHARGE (+25% SPEED)", type: "speed", duration: 3 } },
+  "W+K": { name: "Typhoon Focus", type: "UTILITY", chiCost: 2, baseDamage: 0, hitChance: 100, video: "charge_up.mp4", buff: { id: "focus", label: "FOCUS (+20% S-ATK)", type: "attack", duration: 2 } },
+  "W+L": { name: "Typhoon Bless", type: "UTILITY", chiCost: 1, baseDamage: 0, hitChance: 100, video: "mind.mp4", faintRecovery: 15 },
+  "D+J": { name: "Standard Punch", type: "PHYSICAL", chiCost: 0, baseDamage: 66, hitChance: 78, video: "punch.mp4" },
+  "D+K": { name: "Standard Kick", type: "PHYSICAL", chiCost: 0, baseDamage: 86, hitChance: 78, video: "kick.mp4" },
+  "D+L": { name: "Combo Punch", type: "PHYSICAL", chiCost: 1, baseDamage: 132, hitChance: 76, video: "combo_punch.mp4" },
+  "D+I": { name: "Combo Kick", type: "PHYSICAL", chiCost: 1, baseDamage: 121, hitChance: 76, video: "combo_kick.mp4", unmirrored: true },
   "S+J": { name: "Rider Power Chop", type: "SPECIAL", chiCost: 3, baseDamage: 200, hitChance: 80, video: "power_chop.mp4" },
   "S+K": { name: "Rider Head Crusher", type: "SPECIAL", chiCost: 4, baseDamage: 240, hitChance: 75, video: "head_crusher.mp4" },
   "S+L": { name: "Rider Kick", type: "SPECIAL", chiCost: 6, baseDamage: 430, hitChance: 70, video: "rider_kick.mp4" },
   "S+I": { name: "Kirimomi Kick", type: "SPECIAL", chiCost: 10, baseDamage: 550, hitChance: 76, video: "kirimomi_kick.mp4" },
   "A+I": { name: "Windmill Guard", type: "DEFENSE", chiCost: 3, baseDamage: 0, hitChance: 100, video: "windmill_guard.mp4", unmirrored: true },
-  "A+J": { name: "High Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" },
-  "A+K": { name: "Mid Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" },
-  "A+L": { name: "Side Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" }
+  "A+J": { name: "Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" },
+  "A+K": { name: "Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" },
+  "A+L": { name: "Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" }
 };
 
 if (!window.gameState) {
@@ -303,7 +303,6 @@ function updateHUD() {
 }
 
 async function applyFaintBuildUp(player, playerKey, customAmount = null) {
-  // Ignore faint buildup if player is already KO'd
   if (!player || player.lp <= 0 || player.isFainted) return;
 
   const rules = window.COMBAT_RULES || COMBAT_RULES;
@@ -831,8 +830,13 @@ function updateChargeProgress() {
 
   let duration = CHARGE_TIMES[gameState.input.heldDirection] || 2000;
   
-  if (gameState.p1 && gameState.p1.activeBuffs && gameState.p1.activeBuffs.some(b => b.id === 'charge_speed')) {
-    duration = duration * 0.75;
+  if (gameState.p1 && gameState.p1.activeBuffs) {
+    if (gameState.p1.activeBuffs.some(b => b.id === 'charge_speed' || b.id === 'typhoon_speed' || b.id === 'double_typhoon_speed' || b.id === 'red_shutter')) {
+      duration = duration * 0.75;
+    }
+    if (gameState.p1.activeBuffs.some(b => b.id === 'rope_bind')) {
+      duration = duration * 1.30;
+    }
   }
 
   const elapsed = Date.now() - gameState.input.chargeStartTime;
@@ -934,15 +938,19 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
 
     let attackerHitBonus = (attacker.id === 'nigo' && attacker.airborneTicks > 0) ? 15 : 0;
 
-    if (attacker.activeBuffs && attacker.activeBuffs.some(b => b.id === 'arm_calibration')) {
+    if (attacker.activeBuffs && attacker.activeBuffs.some(b => b.id === 'arm_calibration' || b.id === 'accuracy_focus' || b.id === 'red_lamp_boost')) {
       attackerHitBonus += 15;
     }
 
     let rawHitRate = (baseHitChance * accuracyDiscount) + attackerHitBonus;
 
     let baseEvasionPct = (defender && defender.evasionRate !== undefined) ? defender.evasionRate : 0.0;
-    if (defender.id === 'ichigo' && defender.airborneTicks > 0) {
-      baseEvasionPct += 0.20;
+    if (defender.airborneTicks > 0 && defender.activeBuffs) {
+      if (defender.activeBuffs.some(b => b.id === 'airborne_evasion')) {
+        baseEvasionPct += 0.20;
+      } else if (defender.activeBuffs.some(b => b.id === 'airborne_boost')) {
+        baseEvasionPct += (defender.id === 'ichigo' ? 0.20 : 0.15);
+      }
     }
 
     let instabilityMult = 1.0;
@@ -978,6 +986,8 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
       focusMultiplier = 1.20;
     } else if (atkMoveKey.startsWith('D') && attacker.activeBuffs.some(b => b.id === 'power_focus')) {
       focusMultiplier = 1.30;
+    } else if (attacker.activeBuffs.some(b => b.id === 'red_lamp_boost')) {
+      focusMultiplier = 1.15;
     }
   }
 
@@ -1131,6 +1141,7 @@ async function executeTurnResolutionPhase() {
   // STEP 1 EXECUTION
   if (move1.type !== 'IDLE' && key1 !== 'DO_NOTHING') {
     if (move1.buff) applyBuff(attacker1, move1.buff.id, move1.buff.label, move1.buff.type, move1.buff.duration);
+    if (move1.debuff) applyBuff(defender1, move1.debuff.id, move1.debuff.label, move1.debuff.type, move1.debuff.duration);
     handleAirborneState(attacker1, key1, move1);
 
     if (move1.faintRecovery && attacker1.faintMeter > 0) {
@@ -1219,6 +1230,10 @@ async function executeTurnResolutionPhase() {
             const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
             attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain);
           }
+          if (move1.chiRefundOnHit && move1.chiRefundOnHit > 0) {
+            attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + move1.chiRefundOnHit);
+            triggerFloatingText(atkKey1, `CHI +${move1.chiRefundOnHit}!`, 'heal');
+          }
           updateHUD();
 
           triggerStaggeredPopups(defKey1, [
@@ -1241,6 +1256,10 @@ async function executeTurnResolutionPhase() {
             const chiGain = (key1 === 'D+J' || key1 === 'D+K') ? 2 : 3;
             attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain);
           }
+          if (move1.chiRefundOnHit && move1.chiRefundOnHit > 0) {
+            attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + move1.chiRefundOnHit);
+            triggerFloatingText(atkKey1, `CHI +${move1.chiRefundOnHit}!`, 'heal');
+          }
           updateHUD();
 
           triggerStaggeredPopups(defKey1, [
@@ -1256,6 +1275,7 @@ async function executeTurnResolutionPhase() {
   // STEP 2 EXECUTION
   if (defender2.lp > 0 && !attacker2.isFainted && !defender1WasInterrupted && move2.type !== 'IDLE' && key2 !== 'DO_NOTHING' && move2.type !== 'DEFENSE') {
     if (move2.buff) applyBuff(attacker2, move2.buff.id, move2.buff.label, move2.buff.type, move2.buff.duration);
+    if (move2.debuff) applyBuff(defender2, move2.debuff.id, move2.debuff.label, move2.debuff.type, move2.debuff.duration);
     handleAirborneState(attacker2, key2, move2);
 
     if (move2.faintRecovery && attacker2.faintMeter > 0) {
@@ -1327,6 +1347,10 @@ async function executeTurnResolutionPhase() {
           const chiGain = (key2 === 'D+J' || key2 === 'D+K') ? 2 : 3;
           attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain);
         }
+        if (move2.chiRefundOnHit && move2.chiRefundOnHit > 0) {
+          attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + move2.chiRefundOnHit);
+          triggerFloatingText(atkKey2, `CHI +${move2.chiRefundOnHit}!`, 'heal');
+        }
         updateHUD();
 
         triggerStaggeredPopups(defKey2, [
@@ -1346,6 +1370,10 @@ async function executeTurnResolutionPhase() {
         if (key2.startsWith('D') && (move2.chiCost || 0) <= 0) {
           const chiGain = (key2 === 'D+J' || key2 === 'D+K') ? 2 : 3;
           attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain);
+        }
+        if (move2.chiRefundOnHit && move2.chiRefundOnHit > 0) {
+          attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + move2.chiRefundOnHit);
+          triggerFloatingText(atkKey2, `CHI +${move2.chiRefundOnHit}!`, 'heal');
         }
         updateHUD();
 
