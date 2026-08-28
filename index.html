@@ -1,20 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Kamen Fight</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
 
   <!-- CHARACTER SELECTION SCREEN (VISIBLE ON BOOT) -->
   <div id="vs-select-screen" class="screen-container">
-    <div class="bgm-volume-control" style="position: absolute; top: 15px; right: 20px; display: flex; align-items: center; gap: 8px; font-family: monospace; color: #00ffcc;">
+    <div class="bgm-volume-control"
+      style="position: absolute; top: 15px; right: 20px; display: flex; align-items: center; gap: 8px; font-family: monospace; color: #00ffcc;">
       <label for="bgm-slider">🔊 BGM:</label>
-      <input type="range" id="bgm-slider" min="0" max="1" step="0.05" value="0.5" oninput="changeBGMVolume(this.value)" style="cursor: pointer; accent-color: #00ffcc;">
+      <input type="range" id="bgm-slider" min="0" max="1" step="0.05" value="0.5" oninput="changeBGMVolume(this.value)"
+        style="cursor: pointer; accent-color: #00ffcc;">
     </div>
     <h1 id="vs-header-text">STEP 1: SELECT PLAYER 1 RIDER</h1>
+
+
 
     <div class="selection-layout">
       <!-- P1 Selection Card -->
@@ -63,16 +70,19 @@
     <div class="selection-actions">
       <button id="back-btn" class="nav-btn" onclick="handleBackStep()" disabled>BACK</button>
       <button id="confirm-btn" class="action-btn" onclick="handleConfirmStep()">CONFIRM P1</button>
-      <button id="start-game-btn" class="action-btn start-glow" onclick="validateAndStartMatch()" hidden>START GAME</button>
+      <button id="start-game-btn" class="action-btn start-glow" onclick="validateAndStartMatch()" hidden>START
+        GAME</button>
 
       <!-- SIMULATION CONTROLS -->
       <div class="sim-controls" style="display: inline-flex; align-items: center; gap: 8px; margin-left: 10px;">
-        <select id="sim-count-select" style="padding: 8px 12px; background: #000; color: #00ffcc; border: 1px solid #00ffcc; font-family: monospace; font-size: 14px; border-radius: 4px;">
+        <select id="sim-count-select"
+          style="padding: 8px 12px; background: #000; color: #00ffcc; border: 1px solid #00ffcc; font-family: monospace; font-size: 14px; border-radius: 4px;">
           <option value="10">10 Matches</option>
           <option value="20" selected>20 Matches</option>
           <option value="50">50 Matches</option>
         </select>
-        <button id="btn-simulate-matches" class="action-btn" style="background: #ffaa00; color: #000; font-weight: bold;" disabled>⚡ SIMULATE</button>
+        <button id="btn-simulate-matches" class="action-btn"
+          style="background: #ffaa00; color: #000; font-weight: bold;" disabled>⚡ SIMULATE</button>
       </div>
     </div>
   </div>
@@ -87,7 +97,7 @@
 
   <!-- MAIN BATTLE SCREEN (HIDDEN ON BOOT) -->
   <div id="battle-screen" class="screen-container" hidden>
-    
+
     <!-- TOP HUD BAR -->
     <div class="hud-bar">
       <!-- P1 Stats -->
@@ -212,4 +222,5 @@
   <script src="js/game.js"></script>
   <script src="js/ui.js"></script>
 </body>
+
 </html>
