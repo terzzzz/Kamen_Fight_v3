@@ -12,7 +12,7 @@ var STORAGE_KEYS = {
  * Saves the current AI knowledge base to LocalStorage.
  */
 function saveAIKnowledge() {
-  if (window.globalAIKnowledge) {
+  if (window.globalAIKnowledge && typeof window.globalAIKnowledge.serialize === 'function') {
     try {
       var data = window.globalAIKnowledge.serialize();
       localStorage.setItem(STORAGE_KEYS.AI_MEMORY, data);
@@ -26,7 +26,7 @@ function saveAIKnowledge() {
  * Loads stored AI knowledge into globalAIKnowledge on game boot.
  */
 function loadAIKnowledge() {
-  if (window.globalAIKnowledge) {
+  if (window.globalAIKnowledge && typeof window.globalAIKnowledge.deserialize === 'function') {
     try {
       var data = localStorage.getItem(STORAGE_KEYS.AI_MEMORY);
       if (data) {
@@ -72,9 +72,24 @@ function loadBattleStats() {
  * Clears saved AI memory to reset learning.
  */
 function clearAIMemory() {
-  localStorage.removeItem(STORAGE_KEYS.AI_MEMORY);
-  if (window.globalAIKnowledge) {
-    window.globalAIKnowledge.memoryStore = {};
+  try {
+    localStorage.removeItem(STORAGE_KEYS.AI_MEMORY);
+    if (window.globalAIKnowledge) {
+      window.globalAIKnowledge.memoryStore = {};
+    }
+  } catch (e) {
+    console.warn("Failed to clear AI memory:", e);
+  }
+}
+
+/**
+ * Clears saved match history statistics.
+ */
+function clearBattleStats() {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.MATCH_STATS);
+  } catch (e) {
+    console.warn("Failed to clear battle stats:", e);
   }
 }
 
@@ -84,3 +99,4 @@ window.loadAIKnowledge = loadAIKnowledge;
 window.recordMatchStats = recordMatchStats;
 window.loadBattleStats = loadBattleStats;
 window.clearAIMemory = clearAIMemory;
+window.clearBattleStats = clearBattleStats;
