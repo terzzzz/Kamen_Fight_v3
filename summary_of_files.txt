@@ -1,0 +1,36 @@
+As at 28-8-2926:
+
+JavaScript Directory (/js/)
+ai.js: Adaptive learning module that tracks move success rates and records turn outcome history for AI adaptation.
+
+combat.js: Core combat engine managing the turn resolution loop, move priorities, damage formulas, Chi/Faint accumulation, and KO/Victory triggers.
+
+common.js: Shared helper utilities, math routines, and global state helpers used across multiple scripts.
+
+cpu_controller.js: AI decision-making controller that evaluates available moves according to selected difficulty levels (Easy, Normal, Hard).
+
+foresee_engine.js: Predictive calculation engine that evaluates potential move outcomes and counter-play options for AI decision-making.
+
+game.js: Main game orchestrator and entry point initializing global application states, game modes, and event hooks.
+
+item.js: Logic handler for managing item usage, inventory effects, and combat consumables.
+
+media.js: Video controller managing video preloading, iOS mobile video playback unlocking, center screen transitions, and directional sprite flipping (scaleX).
+
+simulator.js: Headless combat simulation engine used to run rapid, asynchronous CPU vs. CPU matches for win-rate and balance analytics.
+
+storage.js: Persistence manager handling localStorage reads and writes for saved AI knowledge, match stats, and user preferences.
+
+ui.js: DOM UI renderer managing HUD stat updates, health bars, damage popups, and status indicators.
+
+vs_select.js: Character selection screen controller managing Rider selection states, difficulty toggles, and match setup parameters.
+
+CSS Directory (/css/)
+style.css: Master stylesheet defining layouts, HUD overlays, video scaling containers, battle animations, control pad styling, and visual themes.
+
+Data Directory (/data/)
+items.js: Data dictionary defining available items, their attributes, costs, and in-game effects.
+
+moves.json: Move set database defining move commands, type classifications, Chi costs, base damage, hit chances, buff parameters, and video file associations for each Kamen Rider.
+
+riders.json: Character roster registry storing base stats (LP, Archetype), asset paths, finisher display names, initial orientation (sourceFacing), and active/unlock flags.
