@@ -30,7 +30,8 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-html, body {
+html,
+body {
   width: 100vw;
   height: 100vh;
   background-color: var(--bg-color);
@@ -243,7 +244,7 @@ body {
   font-style: italic;
   color: #e60033;
   letter-spacing: 1px;
-  text-shadow: 
+  text-shadow:
     0 0 8px rgba(230, 0, 51, 0.6),
     1px 1px 0px #000;
   transform: skewX(-10deg);
@@ -253,8 +254,13 @@ body {
 }
 
 @keyframes smoothVsPulse {
-  0% { transform: skewX(-10deg) scale(1); }
-  100% { transform: skewX(-10deg) scale(1.04); }
+  0% {
+    transform: skewX(-10deg) scale(1);
+  }
+
+  100% {
+    transform: skewX(-10deg) scale(1.04);
+  }
 }
 
 .error-banner {
@@ -277,7 +283,8 @@ body {
   flex-shrink: 0;
 }
 
-.nav-btn, .action-btn {
+.nav-btn,
+.action-btn {
   padding: 10px 22px;
   font-size: clamp(0.85rem, 2.5vw, 1.05rem);
   font-weight: bold;
@@ -307,8 +314,13 @@ body {
 }
 
 @keyframes pulseYellow {
-  0% { box-shadow: 0 0 5px var(--text-yellow); }
-  100% { box-shadow: 0 0 20px var(--text-yellow); }
+  0% {
+    box-shadow: 0 0 5px var(--text-yellow);
+  }
+
+  100% {
+    box-shadow: 0 0 20px var(--text-yellow);
+  }
 }
 
 /* TOP HUD BAR */
@@ -578,6 +590,20 @@ body {
   background: #000;
 }
 
+/* DYNAMIC CHARACTER FLIPPING & MIRRORING CLASSES */
+.mirror-flip,
+.face-right-flip,
+.face-left-flip {
+  transform: scaleX(-1);
+}
+
+/* OPTIONAL SPECIFIC FLIP FOR V3 AS P1 */
+#p1-box video[src*="v3"],
+#p1-box img[src*="v3"],
+.v3-p1-flip {
+  transform: scaleX(-1);
+}
+
 /* CONSTRAINED FLOATING DAMAGE POPUPS */
 .damage-popup {
   position: absolute;
@@ -633,14 +659,17 @@ body {
     opacity: 0;
     transform: translate(-50%, 20px) scale(0.8);
   }
+
   15% {
     opacity: 1;
     transform: translate(-50%, 0) scale(1.15);
   }
+
   75% {
     opacity: 1;
     transform: translate(-50%, -20px) scale(1);
   }
+
   100% {
     opacity: 0;
     transform: translate(-50%, -40px) scale(0.9);
@@ -702,13 +731,15 @@ body {
   padding: 2px 10px;
 }
 
-.d-pad, .action-pad {
+.d-pad,
+.action-pad {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
-.d-pad-middle, .action-pad-middle {
+.d-pad-middle,
+.action-pad-middle {
   display: flex;
   gap: 4px;
 }
@@ -725,7 +756,8 @@ body {
   border-radius: 4px;
 }
 
-.pad-btn:active, .pad-btn.active {
+.pad-btn:active,
+.pad-btn.active {
   background: var(--border-cyan);
   color: #000;
   box-shadow: 0 0 10px var(--border-cyan);
@@ -824,7 +856,7 @@ body {
   table-layout: fixed;
 }
 
-.sim-table th, 
+.sim-table th,
 .sim-table td {
   padding: 6px 4px;
   text-align: center;
