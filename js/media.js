@@ -35,7 +35,7 @@ function unlockMobileVideos() {
 function getTransformFlip(player, playerKey, moveObj = null) {
   if (!player) return 'scaleX(1)';
 
-  // Priority: Move-level sourceFacing -> Player sourceFacing -> Default 'right'
+  // Priority: 1. Move-level sourceFacing -> 2. Rider-level sourceFacing -> 3. Default 'right'
   const nativeFacing = (moveObj && moveObj.sourceFacing) 
     ? moveObj.sourceFacing 
     : ((player && player.sourceFacing) ? player.sourceFacing : 'right');
@@ -43,18 +43,18 @@ function getTransformFlip(player, playerKey, moveObj = null) {
   let shouldFlip = false;
 
   if (nativeFacing === 'left') {
-    // Asset naturally faces LEFT.
-    // P1 (facing RIGHT) -> Must Flip!
-    // P2 (facing LEFT)  -> No Flip needed.
+    // Native video faces LEFT (Ichigo defaults)
+    // P1 slot must face RIGHT -> FLIP!
+    // P2 slot must face LEFT  -> NO FLIP
     shouldFlip = (playerKey === 'p1');
   } else {
-    // Asset naturally faces RIGHT (Default for Ichigo, V3, Riderman).
-    // P1 (facing RIGHT) -> No Flip needed.
-    // P2 (facing LEFT)  -> Must Flip!
+    // Native video faces RIGHT (Nigo, V3, Riderman, + Ichigo's punch/combo_kick/kirimomi_kick)
+    // P1 slot must face RIGHT -> NO FLIP
+    // P2 slot must face LEFT  -> FLIP!
     shouldFlip = (playerKey === 'p2');
   }
 
-  // Move-specific manual mirror toggle
+  // Legacy manual unmirrored override fallback (if unmirrored: true is set)
   if (moveObj && moveObj.unmirrored) {
     shouldFlip = !shouldFlip;
   }
