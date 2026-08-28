@@ -1551,8 +1551,8 @@ function startBattle(matchConfig) {
       gameState.p2Moves = typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
     }
 
-    const p1Rider = matchConfig.p1Rider || { id: 'ichigo', name: 'Kamen Rider Ichigo', maxLp: 1850 };
-    const p2Rider = matchConfig.p2Rider || { id: 'nigo', name: 'Kamen Rider Nigo', maxLp: 2000 };
+    const p1Rider = matchConfig.p1Rider || { id: 'ichigo', name: 'Kamen Rider Ichigo', maxLp: 1850, sourceFacing: 'right' };
+    const p2Rider = matchConfig.p2Rider || { id: 'nigo', name: 'Kamen Rider Nigo', maxLp: 2000, sourceFacing: 'left' };
 
     const rules = window.COMBAT_RULES || COMBAT_RULES;
     const hpMultiplier = (window.GAME_CONFIG && window.GAME_CONFIG.HARD_CPU_HP_MULTIPLIER) || 1.30;
@@ -1566,6 +1566,7 @@ function startBattle(matchConfig) {
     gameState.p1 = {
       id: p1Rider.id || 'ichigo',
       name: p1Rider.name || 'Kamen Rider Ichigo',
+      sourceFacing: p1Rider.sourceFacing || 'right',
       isCPU: !!matchConfig.p1IsCPU,
       maxLp: p1MaxLp,
       lp: p1MaxLp,
@@ -1585,6 +1586,7 @@ function startBattle(matchConfig) {
     gameState.p2 = {
       id: p2Rider.id || 'nigo',
       name: p2Rider.name || 'Kamen Rider Nigo',
+      sourceFacing: p2Rider.sourceFacing || 'left',
       isCPU: !!matchConfig.p2IsCPU,
       maxLp: p2MaxLp,
       lp: p2MaxLp,
