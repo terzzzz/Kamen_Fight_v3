@@ -84,7 +84,7 @@
       "type": "SPECIAL",
       "rangeType": "REACH",
       "chiCost": 3,
-      "baseDamage": 50,
+      "baseDamage": 60,
       "baseFaintDamage": 30,
       "hitChance": 80,
       "video": "double_typhoon.mp4"
@@ -201,9 +201,10 @@
       "name": "Rope Arm Tie-Up",
       "type": "UTILITY",
       "rangeType": "REACH",
-      "chiCost": 5,
-      "baseDamage": 40,
-      "hitChance": 85,
+      "chiCost": 2,
+      "baseDamage": 72,
+      "baseFaintDamage": 30,
+      "hitChance": 88,
       "video": "rope_tie.mp4",
       "debuff": {
         "id": "rope_bind",
@@ -216,33 +217,34 @@
       "name": "Standard Punch",
       "type": "PHYSICAL",
       "chiCost": 0,
-      "baseDamage": 65,
-      "hitChance": 80,
+      "baseDamage": 70,
+      "hitChance": 82,
       "video": "punch.mp4"
     },
     "D+K": {
       "name": "Standard Kick",
       "type": "PHYSICAL",
       "chiCost": 0,
-      "baseDamage": 80,
-      "hitChance": 80,
+      "baseDamage": 85,
+      "hitChance": 82,
       "video": "kick.mp4"
     },
     "D+L": {
       "name": "Cassette Combo",
       "type": "PHYSICAL",
       "chiCost": 1,
-      "baseDamage": 125,
-      "hitChance": 78,
+      "baseDamage": 145,
+      "hitChance": 80,
       "video": "combo_attack.mp4"
     },
     "D+I": {
       "name": "Rope Arm Hook",
       "type": "PHYSICAL",
       "rangeType": "REACH",
-      "chiCost": 2,
-      "baseDamage": 90,
-      "hitChance": 82,
+      "chiCost": 1,
+      "baseDamage": 138,
+      "baseFaintDamage": 25,
+      "hitChance": 84,
       "video": "hook_arm.mp4",
       "chiRefundOnHit": 3
     },
@@ -250,8 +252,8 @@
       "name": "Riderman Kick",
       "type": "SPECIAL",
       "chiCost": 4,
-      "baseDamage": 420,
-      "hitChance": 78,
+      "baseDamage": 440,
+      "hitChance": 80,
       "video": "rider_kick.mp4"
     },
     "S+K": {
@@ -259,8 +261,9 @@
       "type": "SPECIAL",
       "rangeType": "REACH",
       "chiCost": 6,
-      "baseDamage": 540,
-      "hitChance": 72,
+      "baseDamage": 696,
+      "baseFaintDamage": 35,
+      "hitChance": 75,
       "video": "drill_arm.mp4"
     },
     "S+L": {
@@ -268,7 +271,7 @@
       "type": "SPECIAL",
       "rangeType": "REACH",
       "chiCost": 7,
-      "baseDamage": 800,
+      "baseDamage": 1008,
       "hitChance": 70,
       "video": "power_arm.mp4"
     },
@@ -277,8 +280,8 @@
       "type": "SPECIAL",
       "rangeType": "REACH",
       "chiCost": 10,
-      "baseDamage": 1040,
-      "hitChance": 75,
+      "baseDamage": 1320,
+      "hitChance": 78,
       "video": "hook.mp4"
     },
     "A+I": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
