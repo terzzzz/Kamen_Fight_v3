@@ -18,6 +18,7 @@
 
   /**
    * Deterministically projects player state changes for one single turn without UI side-effects.
+   * Incorporates Low Power (< 5 Chi) & Full Power (> 14 Chi) combat modifiers.
    */
   function simulateTurnState(selfState, oppState, selfMoveKey, oppMoveKey, selfMovesData, oppMovesData) {
     const nextSelf = JSON.parse(JSON.stringify(selfState));
@@ -81,17 +82,33 @@
         return;
       }
 
+      // --- CHI THRESHOLD FLAGS ---
+      const isFullPowerAtk = step.atk.chi > 14;
+      const isLowPowerDef = step.def.chi < 5;
+
+      // Calculate Hit Rate (+20% Accuracy if Full Power)
       let hitRate = ((step.move.hitChance || 80) / 100);
+      if (isFullPowerAtk) {
+        hitRate = Math.min(1.0, hitRate + 0.20);
+      }
       if (step.atk.activeBuffs && step.atk.activeBuffs.some(b => b.id === 'arm_calibration' || b.id === 'red_lamp_boost' || b.id === 'accuracy_focus')) {
         hitRate = Math.min(1.0, hitRate + 0.15);
       }
 
       let isGuarded = step.oppMove.type === 'DEFENSE' && !step.def.isFainted;
-      let damageMult = isGuarded ? 0.30 : 1.0;
+      let damageMult = (isGuarded && !step.move.unblockable) ? 0.30 : 1.0;
 
+      // Calculate Damage (+20% dealt if Full Power, +25% taken if Low Power)
       let baseDmg = step.move.baseDamage || 0;
+      if (isFullPowerAtk) baseDmg *= 1.20;
+      if (isLowPowerDef) baseDmg *= 1.25;
+
       let expectedDmg = Math.floor(baseDmg * hitRate * damageMult);
-      let expectedFaint = Math.floor((step.move.baseFaintDamage || 25) * hitRate);
+
+      // Calculate Faint Damage (+25% taken if Low Power)
+      let baseFaintDmg = step.move.baseFaintDamage || 25;
+      if (isLowPowerDef) baseFaintDmg *= 1.25;
+      let expectedFaint = Math.floor(baseFaintDmg * hitRate);
 
       step.def.lp = Math.max(0, step.def.lp - expectedDmg);
 
@@ -136,6 +153,7 @@
 
   /**
    * Dynamic Non-Linear Evaluation Function
+   * Scores leaf states based on LP, Chi, Faint, and Low/Full Power Thresholds.
    */
   function evaluateLeafState(selfState, oppState, characterWeights = {}) {
     if (oppState.lp <= 0) return 10000;
@@ -155,11 +173,18 @@
     const W_CHI = (characterWeights.W_CHI || 8.0) * resourceDiscount;
     const W_FAINT = (characterWeights.W_FAINT || 2.0) * resourceDiscount;
 
-    let selfEffectiveChi = selfState.chi > 11 ? 11 + (selfState.chi - 11) * 0.25 : selfState.chi;
-    let oppEffectiveChi = oppState.chi > 11 ? 11 + (oppState.chi - 11) * 0.25 : oppState.chi;
+    // Direct linear Chi valuation (allows 15-16 Chi to be scored highly for Full Power)
+    let selfEffectiveChi = selfState.chi;
+    let oppEffectiveChi = oppState.chi;
 
     let score = ((selfState.lp - oppState.lp) * W_LP) +
                 ((selfEffectiveChi - oppEffectiveChi) * W_CHI);
+
+    // Dynamic Threshold Valuation
+    if (selfState.chi < 5) score -= 80 * resourceDiscount;      // Low Power Vulnerability Penalty
+    if (oppState.chi < 5) score += 80 * resourceDiscount;       // Target Low Power Opponent Bonus
+    if (selfState.chi > 14) score += 100 * resourceDiscount;    // Full Power Bonus
+    if (oppState.chi > 14) score -= 100 * resourceDiscount;     // Opponent Full Power Threat
 
     let oppFaintVal = (oppState.isFainted || oppState.faintMeter >= 100 || oppState.cashedInFaint) ? 100 : oppState.faintMeter;
     let selfFaintVal = (selfState.isFainted || selfState.faintMeter >= 100 || selfState.cashedInFaint) ? 100 : selfState.faintMeter;
