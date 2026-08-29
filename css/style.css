@@ -399,7 +399,7 @@ body {
   height: 100%;
   background: var(--border-cyan);
   width: 0%;
-  transition: width 0.2s ease;
+  transition: width 0.2s ease, background-color 0.2s ease;
 }
 
 .faint-bar-wrapper {
@@ -1062,9 +1062,11 @@ body {
     height: clamp(32px, 10vw, 40px);
     font-size: 0.8rem;
   }
+}
 
-   /* ==========================================================================
+/* ==========================================================================
    CHI THRESHOLD STATE STYLES (LOW POWER & FULL POWER)
+   Global Rules - Active on Desktop & Mobile
    ========================================================================== */
 
 /* Low Power State (Chi < 5) */
@@ -1113,5 +1115,4 @@ body {
 @keyframes pulseFullPower {
   0% { box-shadow: 0 0 4px rgba(255, 204, 0, 0.4); }
   100% { box-shadow: 0 0 14px rgba(255, 204, 0, 0.9); }
-}
 }
