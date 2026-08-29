@@ -1,7 +1,31 @@
 /**
- * Main AI Memory Manager, Habit Tracker & Decision Engine
+ * Main AI Memory Manager, Habit Tracker, Rider Profiles & Decision Engine
  * Path: js/ai.js
  */
+
+// Rider-Specific AI Archetype Profiles
+window.RIDER_AI_PROFILES = {
+  ichigo: {
+    archetype: 'Balanced',
+    weights: { W_LP: 1.0, W_CHI: 7.0, W_FAINT: 2.0 },
+    preferredChiGoal: 6
+  },
+  nigo: {
+    archetype: 'Heavy Power',
+    weights: { W_LP: 1.3, W_CHI: 5.0, W_FAINT: 1.5 },
+    preferredChiGoal: 10
+  },
+  v3: {
+    archetype: 'Combo / Fast Chi',
+    weights: { W_LP: 0.9, W_CHI: 9.0, W_FAINT: 2.5 },
+    preferredChiGoal: 8
+  },
+  riderman: {
+    archetype: 'Utility & Control',
+    weights: { W_LP: 0.8, W_CHI: 8.0, W_FAINT: 3.0 },
+    preferredChiGoal: 5
+  }
+};
 
 window.globalAIKnowledge = {
   memoryStore: {},
@@ -107,7 +131,7 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
   const diff = String(difficulty).toLowerCase();
   const riderProfile = (window.RIDER_AI_PROFILES && window.RIDER_AI_PROFILES[cpuPlayer.id]) 
     ? window.RIDER_AI_PROFILES[cpuPlayer.id] 
-    : { weights: { W_LP: 1.0, W_CHI: 8.0, W_FAINT: 2.0 }, dChargeRange: [85, 95] };
+    : { weights: { W_LP: 1.0, W_CHI: 8.0, W_FAINT: 2.0 }, preferredChiGoal: 6 };
 
   // --- EASY DIFFICULTY ---
   if (diff === 'easy') {
@@ -142,6 +166,26 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
   }
 
   // --- HARD DIFFICULTY ---
+  // Initialize persistent memory on the CPU player object
+  if (!cpuPlayer.memory) {
+    cpuPlayer.memory = {
+      recentMoves: [],
+      targetChiGoal: riderProfile.preferredChiGoal || 6,
+      strategy: 'BALANCED'
+    };
+  }
+
+  const mem = cpuPlayer.memory;
+  const currentChi = cpuPlayer.chi || 0;
+
+  // 1. Dynamic Strategy Transition (Prevents immediate Chi-dump loops)
+  if (currentChi >= mem.targetChiGoal) {
+    mem.strategy = 'BURST';
+  } else if (currentChi <= 2) {
+    mem.targetChiGoal = Math.random() < 0.5 ? riderProfile.preferredChiGoal : 10;
+    mem.strategy = Math.random() < 0.4 ? 'BUFF_UP' : 'HOARD';
+  }
+
   let bestKey = moveKeys[0];
   let bestScore = -99999;
 
@@ -153,30 +197,45 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
     if (!m) return;
 
     let score = 0;
+    const isD = key.startsWith('D');
+    const isS = key.startsWith('S');
+    const isW = key.startsWith('W');
+    const cost = m.chiCost || 0;
 
     // 1. Damage Output Weighting
     const baseDmg = m.baseDamage || 0;
     const hitRate = (m.hitChance || 80) / 100;
     score += (baseDmg * hitRate) * riderProfile.weights.W_LP;
 
-    // 2. Chi Efficiency Weighting
-    const cost = m.chiCost || 0;
-    if (cost === 0 && key.startsWith('D')) {
+    // 2. Chi Hoarding & Efficiency Weighting
+    if (mem.strategy === 'HOARD' && isS && cost < mem.targetChiGoal) {
+      score -= 50; // Penalize dumping Chi on small S moves when saving for a finisher
+    } else if (mem.strategy === 'BURST' && isS) {
+      score += cost * 12; // Reward unleashing heavy S moves when goal is met
+    }
+
+    if (cost === 0 && isD) {
       const chiGain = (m.chiRefundOnHit || 0) + 2;
       score += chiGain * riderProfile.weights.W_CHI;
+      if (key !== 'D+J') score += 10; // Variety bonus for non-standard D moves
     } else {
       score -= cost * (riderProfile.weights.W_CHI * 0.5);
     }
 
-    // 3. Faint Meter Management
+    // 3. Anti-Repetition Penalty (Prevents repeating the same single move)
+    const timesUsed = mem.recentMoves.filter(k => k === key).length;
+    score -= timesUsed * 35;
+
+    // 4. Faint Meter & Utility Valuation
     if (m.faintRecovery && cpuPlayer.faintMeter > 30) {
-      score += (m.faintRecovery * (cpuPlayer.faintMeter / 100)) * riderProfile.weights.W_FAINT;
+      score += (m.faintRecovery * (cpuPlayer.faintMeter / 100)) * riderProfile.weights.W_FAINT * 1.5;
     }
     if (m.baseFaintDamage) {
       score += (m.baseFaintDamage * hitRate) * (riderProfile.weights.W_FAINT * 0.5);
     }
-
-    // 4. Debuff & Utility Valuation
+    if (m.buff && mem.strategy === 'BUFF_UP' && !cpuPlayer.activeBuffs?.some(b => b.id === m.buff.id)) {
+      score += 45;
+    }
     if (m.debuff && opponentPlayer && !opponentPlayer.activeBuffs?.some(b => b.id === m.debuff.id)) {
       score += 45;
     }
@@ -197,7 +256,7 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
       }
     }
 
-    // Small random variance to keep CPU unpredictable
+    // Small random variance to keep CPU choices unpredictable
     score += Math.random() * 8;
 
     if (score > bestScore) {
@@ -206,5 +265,37 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
     }
   });
 
+  // Track recent moves in CPU memory for anti-repetition decay
+  mem.recentMoves.push(bestKey);
+  if (mem.recentMoves.length > 3) {
+    mem.recentMoves.shift();
+  }
+
   return bestKey;
 };
+
+/**
+ * LocalStorage Persistence Helpers
+ */
+window.saveAIKnowledge = function() {
+  try {
+    const payload = window.globalAIKnowledge.serialize();
+    localStorage.setItem('kamen_rider_ai_knowledge', payload);
+  } catch (e) {
+    console.warn("Could not save AI knowledge to localStorage", e);
+  }
+};
+
+window.loadAIKnowledge = function() {
+  try {
+    const payload = localStorage.getItem('kamen_rider_ai_knowledge');
+    if (payload) {
+      window.globalAIKnowledge.deserialize(payload);
+    }
+  } catch (e) {
+    console.warn("Could not load AI knowledge from localStorage", e);
+  }
+};
+
+// Auto-load memory on script evaluation
+window.loadAIKnowledge();
