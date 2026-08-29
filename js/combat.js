@@ -347,7 +347,9 @@ function applyBuff(player, buffId, label, buffType, durationRounds) {
     roundsLeft: durationRounds,
     appliedRound: window.gameState.roundCounter
   });
-  renderBuffTrays();
+  if (typeof updatePlayerHUD === 'function') {
+    updatePlayerHUD(player === window.gameState.p1 ? 'p1' : 'p2', player);
+  }
 }
 
 function processRoundBuffs(player) {
@@ -358,26 +360,9 @@ function processRoundBuffs(player) {
     }
   });
   player.activeBuffs = player.activeBuffs.filter(b => b.roundsLeft > 0);
-  renderBuffTrays();
-}
-
-function renderBuffTrays() {
-  ['p1', 'p2'].forEach(slot => {
-    const player = window.gameState[slot];
-    const tray = document.getElementById(`${slot}-buff-tray`);
-    if (!tray || !player) return;
-
-    tray.innerHTML = '';
-
-    if (player.activeBuffs && player.activeBuffs.length > 0) {
-      player.activeBuffs.forEach(b => {
-        const tag = document.createElement('div');
-        tag.className = `buff-tag ${b.type || 'attack'}`;
-        tag.textContent = `${b.label} (${b.roundsLeft}R)`;
-        tray.appendChild(tag);
-      });
-    }
-  });
+  if (typeof updatePlayerHUD === 'function') {
+    updatePlayerHUD(player === window.gameState.p1 ? 'p1' : 'p2', player);
+  }
 }
 
 function handleAirborneState(player, moveKey, move) {
@@ -392,7 +377,9 @@ function handleAirborneState(player, moveKey, move) {
       player.airborneTicks--;
     }
   }
-  renderBuffTrays();
+  if (typeof updatePlayerHUD === 'function') {
+    updatePlayerHUD(player === window.gameState.p1 ? 'p1' : 'p2', player);
+  }
 }
 
 function setSideBoxesBlank(isBlank) {
@@ -403,40 +390,10 @@ function setSideBoxesBlank(isBlank) {
 }
 
 function updateHUD() {
-  ['p1', 'p2'].forEach(slot => {
-    const player = window.gameState[slot];
-    if (!player) return;
-
-    const nameEl = document.getElementById(`${slot}-name`);
-    const lpEl = document.getElementById(`${slot}-lp`);
-    const chiEl = document.getElementById(`${slot}-chi`);
-
-    if (nameEl) nameEl.textContent = `[${slot.toUpperCase()}] ${player.name}`;
-
-    if (lpEl) {
-      lpEl.innerHTML = `<span class="stat-label">LP:</span> <span class="stat-value-styled">${player.lp} / ${player.maxLp}</span>`;
-    }
-
-    if (chiEl) {
-      chiEl.className = 'stat-line stat-line-chi';
-      const maxChi = player.maxChi || (window.COMBAT_RULES?.MAX_CHI || 16);
-      const chiPct = Math.min(100, Math.max(0, (player.chi / maxChi) * 100));
-      chiEl.innerHTML = `
-        <span class="stat-label">CHI:</span> 
-        <span class="stat-value-large">${player.chi}</span>
-        <div class="chi-bar-track">
-          <div class="chi-bar-fill" style="width: ${chiPct}%;"></div>
-        </div>`;
-    }
-  });
-
-  ['p1', 'p2'].forEach(slot => {
-    const player = window.gameState[slot];
-    const fillEl = document.getElementById(`${slot}-faint-fill`);
-    if (fillEl && player) {
-      fillEl.style.height = `${player.faintMeter}%`;
-    }
-  });
+  if (typeof window.updatePlayerHUD === 'function') {
+    window.updatePlayerHUD('p1', window.gameState.p1);
+    window.updatePlayerHUD('p2', window.gameState.p2);
+  }
 
   const turnDisp = document.getElementById('turn-display');
   if (turnDisp) turnDisp.textContent = `ROUND ${window.gameState.roundCounter}`;
@@ -447,7 +404,13 @@ async function applyFaintBuildUp(player, playerKey, customAmount = null) {
 
   const rules = window.COMBAT_RULES || COMBAT_RULES;
   player.tookCleanHitThisRound = true;
-  const amount = customAmount !== null ? customAmount : rules.HIT_BUILDUP;
+  let amount = customAmount !== null ? customAmount : rules.HIT_BUILDUP;
+
+  // LOW POWER DEFENDER VULNERABILITY (+25% Faint Buildup Taken)
+  if (player.chi < 5) {
+    amount = Math.floor(amount * 1.25);
+  }
+
   player.faintMeter = Math.min(rules.FAINT_THRESHOLD, player.faintMeter + amount);
 
   if (player.faintMeter >= rules.FAINT_THRESHOLD) {
@@ -964,7 +927,12 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
       : rules.FAINT_PENALTY_STANDARD_GUARD;
 
     defender.tookCleanHitThisRound = true;
-    defender.faintMeter = Math.min(rules.FAINT_THRESHOLD, defender.faintMeter + faintPenalty);
+    
+    // Apply Faint Penalty on Guard (incorporates Low Power +25% if applicable)
+    let finalFaintPenalty = faintPenalty;
+    if (defender.chi < 5) finalFaintPenalty = Math.floor(finalFaintPenalty * 1.25);
+
+    defender.faintMeter = Math.min(rules.FAINT_THRESHOLD, defender.faintMeter + finalFaintPenalty);
     if (defender.faintMeter >= rules.FAINT_THRESHOLD) {
       defender.isFainted = true;
       defender.willBeFaintedNextRound = true;
@@ -1019,6 +987,11 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
     let accuracyDiscount = isDOrS ? chargeFactor : 1.0;
 
     let attackerHitBonus = (attacker.id === 'nigo' && attacker.airborneTicks > 0) ? 15 : 0;
+
+    // FULL POWER ATTACKER BONUS (+20% Accuracy)
+    if (attacker.chi > 14) {
+      attackerHitBonus += 20;
+    }
 
     if (attacker.activeBuffs && attacker.activeBuffs.some(b => b.id === 'arm_calibration' || b.id === 'accuracy_focus' || b.id === 'red_lamp_boost')) {
       attackerHitBonus += 15;
@@ -1075,8 +1048,12 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
 
   let jumpAtkMultiplier = attacker.airborneTicks > 0 ? 1.15 : 1.0;
 
+  // CHI THRESHOLD DAMAGE MULTIPLIERS
+  let fullPowerMultiplier = attacker.chi > 14 ? 1.20 : 1.0; // FULL POWER: +20% Damage Dealt
+  let lowPowerDefMultiplier = defender.chi < 5 ? 1.25 : 1.0;  // LOW POWER: +25% Damage Taken
+
   let baseDamage = atkMove.baseDamage || 0;
-  let calculatedDmg = baseDamage * chargeFactor * typhoonMultiplier * focusMultiplier * jumpAtkMultiplier * damageRatio;
+  let calculatedDmg = baseDamage * chargeFactor * typhoonMultiplier * focusMultiplier * jumpAtkMultiplier * fullPowerMultiplier * lowPowerDefMultiplier * damageRatio;
 
   let finalDmg = (isGlancing && calculatedDmg > 0) ? Math.max(1, Math.floor(calculatedDmg * 0.20)) : Math.floor(calculatedDmg);
 
