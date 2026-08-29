@@ -8,17 +8,17 @@ window.RIDER_AI_PROFILES = {
   ichigo: {
     archetype: 'Balanced',
     weights: { W_LP: 1.0, W_CHI: 7.0, W_FAINT: 2.0 },
-    preferredChiGoal: 10 // Hoards for high-tier finisher / Kirimomi Kick
+    preferredChiGoal: 6
   },
   nigo: {
     archetype: 'Heavy Power',
     weights: { W_LP: 1.3, W_CHI: 5.0, W_FAINT: 1.5 },
-    preferredChiGoal: 10
+    preferredChiGoal: 15 // Targets Full Power state (>14 Chi)
   },
   v3: {
     archetype: 'Combo / Fast Chi',
     weights: { W_LP: 0.9, W_CHI: 9.0, W_FAINT: 2.5 },
-    preferredChiGoal: 8
+    preferredChiGoal: 10
   },
   riderman: {
     archetype: 'Utility & Control',
@@ -120,7 +120,7 @@ window.calculateMoveSuccess = function(cpuPlayer, opponentPlayer, cpuMoveKey, ou
 };
 
 /**
- * Core AI Selection Engine for Tactical Choice Evaluation
+ * Core AI Selection Engine with Low Power & Full Power Threshold Evaluation
  */
 window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, difficulty = 'normal') {
   if (cpuPlayer.isFainted) return 'DO_NOTHING';
@@ -131,7 +131,7 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
   const diff = String(difficulty).toLowerCase();
   const riderProfile = (window.RIDER_AI_PROFILES && window.RIDER_AI_PROFILES[cpuPlayer.id]) 
     ? window.RIDER_AI_PROFILES[cpuPlayer.id] 
-    : { weights: { W_LP: 1.0, W_CHI: 8.0, W_FAINT: 2.0 }, preferredChiGoal: 8 };
+    : { weights: { W_LP: 1.0, W_CHI: 8.0, W_FAINT: 2.0 }, preferredChiGoal: 6 };
 
   // --- EASY DIFFICULTY ---
   if (diff === 'easy') {
@@ -156,18 +156,9 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
       if (recKey) return recKey;
     }
 
-    // Prevents premature 3-Chi dumping on Normal: prioritizes high Chi specials when available
-    if (specialKeys.length > 0) {
-      specialKeys.sort((a, b) => (availableMoves[b].chiCost || 0) - (availableMoves[a].chiCost || 0));
-      const highestCost = availableMoves[specialKeys[0]].chiCost || 0;
-
-      // Only unleash specials early if opponent is near death or AI reached target goal
-      const isOpponentWeak = opponentPlayer && opponentPlayer.lp < 350;
-      if (cpuPlayer.chi >= riderProfile.preferredChiGoal || isOpponentWeak || highestCost >= 6) {
-        if (roll < 0.65) return specialKeys[0];
-      }
+    if (roll < 0.35 && specialKeys.length > 0 && cpuPlayer.chi >= 5) {
+      return specialKeys[Math.floor(Math.random() * specialKeys.length)];
     }
-
     if (roll < 0.85 && physicalKeys.length > 0) {
       return physicalKeys[Math.floor(Math.random() * physicalKeys.length)];
     }
@@ -178,20 +169,20 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
   if (!cpuPlayer.memory) {
     cpuPlayer.memory = {
       recentMoves: [],
-      targetChiGoal: riderProfile.preferredChiGoal || 8,
-      strategy: 'HOARD'
+      targetChiGoal: riderProfile.preferredChiGoal || 6,
+      strategy: 'BALANCED'
     };
   }
 
   const mem = cpuPlayer.memory;
   const currentChi = cpuPlayer.chi || 0;
+  const oppChi = (opponentPlayer && typeof opponentPlayer.chi === 'number') ? opponentPlayer.chi : 8;
 
-  // 1. Dynamic Strategy Transition
   if (currentChi >= mem.targetChiGoal) {
     mem.strategy = 'BURST';
-  } else if (currentChi <= 2) {
-    mem.targetChiGoal = riderProfile.preferredChiGoal;
-    mem.strategy = Math.random() < 0.3 ? 'BUFF_UP' : 'HOARD';
+  } else if (currentChi <= 4) {
+    mem.targetChiGoal = Math.random() < 0.5 ? riderProfile.preferredChiGoal : 15;
+    mem.strategy = Math.random() < 0.4 ? 'BUFF_UP' : 'HOARD';
   }
 
   let bestKey = moveKeys[0];
@@ -209,20 +200,36 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
     const isS = key.startsWith('S');
     const cost = m.chiCost || 0;
 
-    // 1. Damage Output Weighting
-    const baseDmg = m.baseDamage || 0;
-    const hitRate = (m.hitChance || 80) / 100;
-    score += (baseDmg * hitRate) * riderProfile.weights.W_LP;
+    // --- DYNAMIC LP & HIT CHANCE THRESHOLD CALCULATIONS ---
+    let evalDamage = m.baseDamage || 0;
+    let evalHitChance = m.hitChance || 80;
+    let evalFaintDmg = m.baseFaintDamage || 0;
 
-    // 2. Chi Hoarding & Heavy Special Valuation
-    if (isS) {
-      if (mem.strategy === 'HOARD' && cost < mem.targetChiGoal) {
-        // Penalize dumping Chi on small S moves when saving for higher-tier moves
-        score -= (mem.targetChiGoal - cost) * 20;
-      } else if (mem.strategy === 'BURST' || currentChi >= mem.targetChiGoal) {
-        // Reward unleashing higher-cost moves when goal is met
-        score += Math.pow(cost, 1.4) * 6;
-      }
+    // 1. FULL POWER ATTACKER BONUS (Chi > 14 => +20% Dmg, +20% Accuracy)
+    if (currentChi > 14) {
+      evalDamage *= 1.20;
+      evalHitChance = Math.min(100, evalHitChance + 20);
+    }
+
+    // 2. LOW POWER DEFENDER VULNERABILITY (Opponent Chi < 5 => +25% Damage & Faint Taken)
+    if (oppChi < 5) {
+      evalDamage *= 1.25;
+      evalFaintDmg *= 1.25;
+    }
+
+    const hitRate = evalHitChance / 100;
+    score += (evalDamage * hitRate) * riderProfile.weights.W_LP;
+
+    // 3. LOW POWER SELF-PRESERVATION (Avoid dropping below 5 Chi)
+    const remainingChi = currentChi - cost;
+    if (remainingChi < 5 && (!opponentPlayer || evalDamage < opponentPlayer.lp)) {
+      score -= 60; // Penalty for placing self in Low Power State
+    }
+
+    if (mem.strategy === 'HOARD' && isS && cost < mem.targetChiGoal) {
+      score -= 50;
+    } else if (mem.strategy === 'BURST' && isS) {
+      score += cost * 12;
     }
 
     if (cost === 0 && isD) {
@@ -233,16 +240,16 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
       score -= cost * (riderProfile.weights.W_CHI * 0.5);
     }
 
-    // 3. Anti-Repetition Penalty
+    // 4. Anti-Repetition Penalty
     const timesUsed = mem.recentMoves.filter(k => k === key).length;
     score -= timesUsed * 35;
 
-    // 4. Faint Meter & Utility Valuation
+    // 5. Utility & Faint Buildup Valuation
     if (m.faintRecovery && cpuPlayer.faintMeter > 30) {
       score += (m.faintRecovery * (cpuPlayer.faintMeter / 100)) * riderProfile.weights.W_FAINT * 1.5;
     }
-    if (m.baseFaintDamage) {
-      score += (m.baseFaintDamage * hitRate) * (riderProfile.weights.W_FAINT * 0.5);
+    if (evalFaintDmg) {
+      score += (evalFaintDmg * hitRate) * (riderProfile.weights.W_FAINT * 0.5);
     }
     if (m.buff && mem.strategy === 'BUFF_UP' && !cpuPlayer.activeBuffs?.some(b => b.id === m.buff.id)) {
       score += 45;
@@ -251,12 +258,7 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
       score += 45;
     }
 
-    // 5. Finish Off Low LP Opponent
-    if (opponentPlayer && baseDmg >= opponentPlayer.lp) {
-      score += 150;
-    }
-
-    // 6. Historical Win Rate Adjustment
+    // 6. Historical Memory & Opponent Habit Exploitation
     const memKey = `${cpuPlayer.id}_vs_${oppId}_${key}`;
     const memData = window.globalAIKnowledge.memoryStore[memKey];
     if (memData && memData.uses > 3) {
@@ -264,11 +266,10 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
       score += winRatio * 30;
     }
 
-    // 7. Opponent Habit Exploitation
     if (oppProfile && oppProfile.totalRounds > 5) {
       const guardRatio = oppProfile.guardCount / oppProfile.totalRounds;
       if (guardRatio > 0.4 && m.unblockable) {
-        score += 60;
+        score += 50;
       }
     }
 
