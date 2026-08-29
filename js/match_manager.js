@@ -1061,26 +1061,28 @@ window.simulateCPUButtonPress = simulateCPUButtonPress;
 
 function updateControlPanelsVisibility() {
   const dualPanel = document.querySelector('.dual-controls-panel');
-  const p1Panel = document.getElementById('p1-controls') || document.getElementById('human-control-panel');
+  const p1Panel = document.getElementById('p1-controls');
   const p2Panel = document.getElementById('p2-controls');
 
   const p1IsHuman = window.gameState.p1 && !window.gameState.p1.isCPU;
   const p2IsHuman = window.gameState.p2 && !window.gameState.p2.isCPU;
 
-  if (p1IsHuman && p2IsHuman) {
-    if (dualPanel) dualPanel.style.display = 'flex';
-    if (p1Panel) p1Panel.style.display = 'flex';
-    if (p2Panel) p2Panel.style.display = 'flex';
-  } else {
-    if (dualPanel) dualPanel.style.display = 'none';
-    if (p1Panel) {
-      p1Panel.hidden = !p1IsHuman;
-      p1Panel.style.display = p1IsHuman ? 'flex' : 'none';
+  // Outer container displays if AT LEAST ONE player is Human
+  if (dualPanel) {
+    if (p1IsHuman || p2IsHuman) {
+      dualPanel.style.display = 'flex';
+    } else {
+      dualPanel.style.display = 'none'; // Only hide during CPU vs CPU simulation
     }
-    if (p2Panel) {
-      p2Panel.hidden = !p2IsHuman;
-      p2Panel.style.display = p2IsHuman ? 'flex' : 'none';
-    }
+  }
+
+  if (p1Panel) {
+    p1Panel.hidden = !p1IsHuman;
+    p1Panel.style.display = p1IsHuman ? 'flex' : 'none';
+  }
+  if (p2Panel) {
+    p2Panel.hidden = !p2IsHuman;
+    p2Panel.style.display = p2IsHuman ? 'flex' : 'none';
   }
 }
 
