@@ -963,6 +963,10 @@ window.freezePlayerChargeBar = freezePlayerChargeBar;
 window.resetPlayerChargeBars = resetPlayerChargeBars;
 window.resetRoundState = resetRoundState;
 
+// Add this line at the bottom of js/match_manager.js with the other window exports:
+window.getMoveForPlayer = getMoveForPlayer;
+
+
 window.addEventListener('DOMContentLoaded', () => {
   bindKeyboardInputs();
   bindCommandButtons();
