@@ -92,6 +92,31 @@ if (!window.gameState) {
   };
 }
 
+/**
+ * Simulates a visual button tap on the screen for CPU inputs or programmatic triggers
+ */
+function simulateCPUButtonPress(btnKey, slotKey) {
+  if (!btnKey) return;
+  const possibleIds = [
+    `${slotKey}-key-${btnKey}`,
+    `key-${btnKey}`,
+    `p2-key-${btnKey}`,
+    `p1-key-${btnKey}`
+  ];
+
+  let btnEl = null;
+  for (const id of possibleIds) {
+    btnEl = document.getElementById(id);
+    if (btnEl) break;
+  }
+
+  if (btnEl) {
+    btnEl.classList.add('active');
+    setTimeout(() => btnEl.classList.remove('active'), 220);
+  }
+}
+window.simulateCPUButtonPress = simulateCPUButtonPress;
+
 /* ==========================================================================
    REAL-TIME DYNAMIC CHARGE BAR MANAGER (P1 & P2)
    ========================================================================== */
@@ -131,7 +156,7 @@ function startPlayerCharge(slotKey, dirKey, targetPercent = 100) {
     }
 
     const elapsed = Date.now() - player.chargeState.startTime;
-    let pct = Math.min(targetPercent, Math.floor((elapsed / baseDuration) * 100));
+    let pct = Math.min(100, Math.floor((elapsed / baseDuration) * 100));
 
     player.chargeState.currentPercent = pct;
     player.activeChargePercent = pct;
@@ -142,7 +167,7 @@ function startPlayerCharge(slotKey, dirKey, targetPercent = 100) {
     if (pct >= targetPercent) {
       clearInterval(player.chargeState.interval);
     }
-  }, 30);
+  }, 20);
 }
 
 function freezePlayerChargeBar(slotKey, moveKey) {
@@ -601,7 +626,7 @@ function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
 
   const isOpponentLocked = playerKey === 'p1'
     ? (gameState.p2IsConfirmed || (gameState.p2 && gameState.p2.isFainted) || gameState.p2AlwaysIdle)
-    : (gameState.input?.isConfirmed || (gameState.p1 && gameState.p1.isFainted));
+    : ((gameState.input && gameState.input.isConfirmed) || gameState.p1IsConfirmed || (gameState.p1 && gameState.p1.isFainted));
 
   let availableMoves = {};
   Object.keys(movesData).forEach(key => {
@@ -639,9 +664,12 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
   const player = gameState[playerKey];
   if (!player) return false;
 
+  const isConfirmed = playerKey === 'p1' ? gameState.p1IsConfirmed : gameState.p2IsConfirmed;
+  if (isConfirmed) return false;
+
   const isOpponentLocked = playerKey === 'p1' 
     ? (gameState.p2IsConfirmed || (gameState.p2 && gameState.p2.isFainted) || gameState.p2AlwaysIdle)
-    : (gameState.input?.isConfirmed || (gameState.p1 && gameState.p1.isFainted));
+    : ((gameState.input && gameState.input.isConfirmed) || gameState.p1IsConfirmed || (gameState.p1 && gameState.p1.isFainted));
 
   const move = getMoveForPlayer(playerKey, moveKey);
   const isGuardMove = moveKey.startsWith('A+') || (move && move.type === 'DEFENSE');
@@ -682,9 +710,9 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
     newlyConfirmed = true;
 
     if (!gameState.p1.isCPU) {
-      const currentCharge = (typeof gameState.input.currentPercent === 'number' && gameState.input.currentPercent > 0)
-        ? gameState.input.currentPercent 
-        : 100;
+      const currentCharge = (player.chargeState && player.chargeState.currentPercent > 0)
+        ? player.chargeState.currentPercent 
+        : (gameState.input && gameState.input.currentPercent > 0 ? gameState.input.currentPercent : 100);
       gameState.p1.activeChargePercent = moveKey === 'DO_NOTHING' ? 100 : currentCharge;
     }
 
@@ -702,7 +730,9 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
     newlyConfirmed = true;
 
     if (!gameState.p2.isCPU && gameState.p2.activeChargePercent === undefined) {
-      gameState.p2.activeChargePercent = (gameState.p2Input && gameState.p2Input.currentPercent) ? gameState.p2Input.currentPercent : 100;
+      gameState.p2.activeChargePercent = (player.chargeState && player.chargeState.currentPercent > 0) 
+        ? player.chargeState.currentPercent 
+        : 100;
     }
 
     freezePlayerChargeBar('p2', moveKey);
@@ -839,67 +869,73 @@ function startRoundCountdown() {
   const timerEl = document.getElementById('turn-timer');
   if (timerEl) timerEl.textContent = `TIME: ${gameState.turnTimerSeconds}s`;
 
-  // CPU REAL-TIME CHARGING SCHEDULER
-  ['p1', 'p2'].forEach(slot => {
+  // REAL-TIME CPU CHARGE MONITOR & BUTTON TRIGGER SCHEDULER
+  ['p1', 'p2'].forEach((slot, index) => {
     const player = gameState[slot];
     if (player && player.isCPU && !player.isFainted) {
       if (slot === 'p2' && gameState.p2AlwaysIdle) return;
 
-      const oppSlot = slot === 'p1' ? 'p2' : 'p1';
-      const difficulty = slot === 'p1' 
-        ? (gameState.matchConfig?.p1Difficulty || 'normal') 
-        : (gameState.matchConfig?.p2Difficulty || 'normal');
-
-      let moveKey = getCPUMoveChoice(player, gameState[oppSlot], slot);
-      const dir = moveKey.split('+')[0];
-
-      const chargeInfo = (typeof calculateCPUCharge === 'function')
-        ? calculateCPUCharge(player, gameState[oppSlot], moveKey, difficulty)
-        : { chargePercent: 85, chargeDelayMs: 1200 };
-
-      if (dir && dir !== 'DO_NOTHING') {
-        startPlayerCharge(slot, dir, chargeInfo.chargePercent);
-      }
+      const startupStagger = Math.floor(Math.random() * 80) + (index * 40);
 
       setTimeout(() => {
         if (gameState.roundPhase !== 'INPUT') return;
-        const isConfirmed = slot === 'p1' ? (gameState.input && gameState.input.isConfirmed) : gameState.p2IsConfirmed;
-        if (!isConfirmed) {
-          confirmPlayerAction(moveKey, slot);
+
+        const oppSlot = slot === 'p1' ? 'p2' : 'p1';
+        let decision = { moveKey: 'DO_NOTHING', targetChargePct: 100 };
+
+        if (typeof selectCPUMoveAndCharge === 'function') {
+          decision = selectCPUMoveAndCharge(player, gameState[oppSlot], slot);
+        } else if (typeof getCPUMoveChoice === 'function') {
+          decision.moveKey = getCPUMoveChoice(player, gameState[oppSlot], slot);
+          decision.targetChargePct = 85;
         }
-      }, chargeInfo.chargeDelayMs);
+
+        const parts = decision.moveKey ? decision.moveKey.split('+') : ['DO_NOTHING'];
+        const dirKey = parts[0];
+        const actKey = parts[1];
+
+        if (dirKey && dirKey !== 'DO_NOTHING') {
+          simulateCPUButtonPress(dirKey, slot);
+          startPlayerCharge(slot, dirKey, decision.targetChargePct);
+
+          const monitorInterval = setInterval(() => {
+            if (gameState.roundPhase !== 'INPUT') {
+              clearInterval(monitorInterval);
+              return;
+            }
+
+            const isAlreadyConfirmed = slot === 'p1' ? gameState.p1IsConfirmed : gameState.p2IsConfirmed;
+
+            if (isAlreadyConfirmed) {
+              clearInterval(monitorInterval);
+              return;
+            }
+
+            const currentMeterLength = player.chargeState ? player.chargeState.currentPercent : 0;
+
+            if (currentMeterLength >= decision.targetChargePct) {
+              clearInterval(monitorInterval);
+
+              if (actKey) {
+                simulateCPUButtonPress(actKey, slot);
+              }
+
+              confirmPlayerAction(decision.moveKey, slot);
+            }
+          }, 20);
+        } else {
+          confirmPlayerAction('DO_NOTHING', slot);
+        }
+      }, startupStagger);
     }
   });
 
+  // Countdown Timer Interval
   gameState.timerInterval = setInterval(() => {
     if (gameState.roundPhase !== 'INPUT') return;
 
     gameState.turnTimerSeconds--;
     if (timerEl) timerEl.textContent = `TIME: ${gameState.turnTimerSeconds}s`;
-
-    const baseWindow = (window.GAME_CONFIG && window.GAME_CONFIG.ROUND_TIME_LIMIT) || 8.0;
-    const halfTimeThreshold = Math.floor(baseWindow / 2);
-
-    if (gameState.turnTimerSeconds <= halfTimeThreshold) {
-      ['p1', 'p2'].forEach(slot => {
-        const player = gameState[slot];
-        const isConfirmed = slot === 'p1' ? (gameState.input && gameState.input.isConfirmed) : gameState.p2IsConfirmed;
-
-        if (player && player.isCPU && !player.isFainted && !isConfirmed) {
-          if (slot === 'p2' && gameState.p2AlwaysIdle) return;
-
-          const oppSlot = slot === 'p1' ? 'p2' : 'p1';
-          const isOpponentConfirmed = oppSlot === 'p1' ? (gameState.input && gameState.input.isConfirmed) : gameState.p2IsConfirmed;
-
-          let moveKey = getCPUMoveChoice(player, gameState[oppSlot], slot);
-          if (!isOpponentConfirmed && (moveKey.startsWith('A+') || getMoveForPlayer(slot, moveKey).type === 'DEFENSE')) {
-            moveKey = getCPUAggressiveFallback(slot);
-          }
-
-          confirmPlayerAction(moveKey, slot);
-        }
-      });
-    }
 
     if (gameState.turnTimerSeconds <= 0) {
       clearInterval(gameState.timerInterval);
@@ -909,10 +945,7 @@ function startRoundCountdown() {
           let mk = getCPUAggressiveFallback('p1');
           confirmPlayerAction(mk, 'p1');
         } else {
-          if (!gameState.input) gameState.input = {};
-          gameState.input.isConfirmed = true;
-          gameState.input.selectedMoveKey = 'DO_NOTHING';
-          if (gameState.p1) gameState.p1.activeChargePercent = 100;
+          confirmPlayerAction('DO_NOTHING', 'p1');
         }
       }
 
@@ -921,45 +954,13 @@ function startRoundCountdown() {
           let mk = getCPUAggressiveFallback('p2');
           confirmPlayerAction(mk, 'p2');
         } else {
-          gameState.p2IsConfirmed = true;
-          gameState.p2SelectedMoveKey = 'DO_NOTHING';
-          if (gameState.p2) gameState.p2.activeChargePercent = 100;
+          confirmPlayerAction('DO_NOTHING', 'p2');
         }
       }
 
       executeTurnResolutionPhase();
     }
   }, 1000);
-}
-
-function updateChargeProgress() {
-  if (!gameState.input || !gameState.input.heldDirection || gameState.roundPhase !== 'INPUT' || (gameState.p1 && gameState.p1.isFainted)) return;
-
-  let duration = CHARGE_TIMES[gameState.input.heldDirection] || 2000;
-  
-  if (gameState.p1 && gameState.p1.activeBuffs) {
-    if (gameState.p1.activeBuffs.some(b => b.id === 'charge_speed' || b.id === 'typhoon_speed' || b.id === 'double_typhoon_speed' || b.id === 'red_shutter')) {
-      duration = duration * 0.75;
-    }
-    if (gameState.p1.activeBuffs.some(b => b.id === 'rope_bind')) {
-      duration = duration * 1.30;
-    }
-  }
-
-  const elapsed = Date.now() - gameState.input.chargeStartTime;
-  gameState.input.currentPercent = Math.min(100, Math.floor((elapsed / duration) * 100));
-
-  const fillEl = document.getElementById('p1-charge-fill') || document.getElementById('charge-fill') || document.querySelector('.charge-fill');
-  if (fillEl) {
-    fillEl.style.width = `${gameState.input.currentPercent}%`;
-    fillEl.textContent = `${gameState.input.currentPercent}%`;
-  }
-
-  const statusEl = document.getElementById('charge-status-display') || document.getElementById('charge-status');
-  if (statusEl) {
-    statusEl.textContent = `CHARGING [${gameState.input.heldDirection}]: ${gameState.input.currentPercent}% (TAP ACTION TO LOCK)`;
-    statusEl.style.color = gameState.input.currentPercent >= 100 ? '#00ffcc' : '#ffcc00';
-  }
 }
 
 function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMoveKey, defenderKey) {
@@ -1793,33 +1794,29 @@ function bindKeyboardInputs() {
     // --- P1 HUMAN INPUT (WASD + JKLI) ---
     if (gameState.p1 && !gameState.p1.isCPU && !gameState.p1.isFainted && !(gameState.input && gameState.input.isConfirmed)) {
       if (['A', 'D', 'W', 'S'].includes(upperKey)) {
-        if (gameState.input.heldDirection !== upperKey) {
-          gameState.input.heldDirection = upperKey;
+        if (!gameState.p1.chargeState || gameState.p1.chargeState.heldDir !== upperKey) {
           startPlayerCharge('p1', upperKey, 100);
         }
       }
 
       if (['J', 'K', 'L', 'I'].includes(upperKey)) {
-        if (!gameState.input.heldDirection) {
+        if (!gameState.p1.chargeState || !gameState.p1.chargeState.heldDir) {
           triggerFloatingText('p1', 'TAP DIRECTION FIRST!', 'scratch');
           return;
         }
-        confirmPlayerAction(`${gameState.input.heldDirection}+${upperKey}`, 'p1');
+        confirmPlayerAction(`${gameState.p1.chargeState.heldDir}+${upperKey}`, 'p1');
       }
     }
 
     // --- P2 HUMAN INPUT (ARROWS + NUMPAD / U,I,O,P) ---
     if (gameState.p2 && !gameState.p2.isCPU && !gameState.p2.isFainted && !gameState.p2IsConfirmed) {
-      if (!gameState.p2Input) gameState.p2Input = { heldDirection: null };
-
       let p2Dir = null;
       if (key === 'ArrowUp') p2Dir = 'W';
       if (key === 'ArrowLeft') p2Dir = 'A';
       if (key === 'ArrowDown') p2Dir = 'S';
       if (key === 'ArrowRight') p2Dir = 'D';
 
-      if (p2Dir && gameState.p2Input.heldDirection !== p2Dir) {
-        gameState.p2Input.heldDirection = p2Dir;
+      if (p2Dir && (!gameState.p2.chargeState || gameState.p2.chargeState.heldDir !== p2Dir)) {
         startPlayerCharge('p2', p2Dir, 100);
       }
 
@@ -1830,11 +1827,11 @@ function bindKeyboardInputs() {
       if (key === '5' || code === 'Numpad5' || key.toLowerCase() === 'p') p2Act = 'I';
 
       if (p2Act) {
-        if (!gameState.p2Input.heldDirection) {
+        if (!gameState.p2.chargeState || !gameState.p2.chargeState.heldDir) {
           triggerFloatingText('p2', 'TAP DIRECTION FIRST!', 'scratch');
           return;
         }
-        confirmPlayerAction(`${gameState.p2Input.heldDirection}+${p2Act}`, 'p2');
+        confirmPlayerAction(`${gameState.p2.chargeState.heldDir}+${p2Act}`, 'p2');
       }
     }
   });
@@ -1868,8 +1865,6 @@ function bindCommandButtons() {
 function handleP2TouchAction(btnId) {
   if (!gameState.p2 || gameState.p2.isCPU || gameState.p2IsConfirmed || gameState.roundPhase !== 'INPUT') return;
 
-  if (!gameState.p2Input) gameState.p2Input = { heldDirection: null };
-
   const action = btnId.replace('p2-key-', '');
 
   if (['W', 'A', 'S', 'D', 'UP', 'LEFT', 'DOWN', 'RIGHT'].includes(action)) {
@@ -1879,7 +1874,6 @@ function handleP2TouchAction(btnId) {
     if (action === 'DOWN') dir = 'S';
     if (action === 'RIGHT') dir = 'D';
 
-    gameState.p2Input.heldDirection = dir;
     startPlayerCharge('p2', dir, 100);
   }
 
@@ -1890,11 +1884,11 @@ function handleP2TouchAction(btnId) {
     if (action === '3') act = 'L';
     if (action === '5') act = 'I';
 
-    if (!gameState.p2Input.heldDirection) {
+    if (!gameState.p2.chargeState || !gameState.p2.chargeState.heldDir) {
       triggerFloatingText('p2', 'TAP DIRECTION FIRST!', 'scratch');
       return;
     }
-    confirmPlayerAction(`${gameState.p2Input.heldDirection}+${act}`, 'p2');
+    confirmPlayerAction(`${gameState.p2.chargeState.heldDir}+${act}`, 'p2');
   }
 }
 
