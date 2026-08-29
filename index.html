@@ -101,8 +101,13 @@
       <!-- P1 Stats -->
       <div class="player-hud p1-hud">
         <h2 id="p1-name">Kamen Rider Ichigo</h2>
-        <div class="stat-line"><span id="p1-lp"></span></div>
-        <div class="stat-line"><span id="p1-chi"></span></div>
+        <div class="stat-line"><span id="p1-lp" class="stat-value-styled">LP: 2300 / 2300</span></div>
+        <div class="stat-line"><span id="p1-chi" class="stat-value-styled">CHI: 8 / 16</span></div>
+
+        <!-- P1 Chi Track Container -->
+        <div class="chi-bar-wrapper" style="width: 100%; height: 8px; background: #111; border: 1px solid #00ffcc; margin: 3px 0; border-radius: 2px; overflow: hidden;">
+          <div id="p1-chi-bar-fill" class="chi-bar-fill" style="width: 50%; height: 100%; background: #00ffcc; transition: width 0.3s;"></div>
+        </div>
 
         <div class="faint-bar-wrapper">
           <span class="faint-label">FAINT</span>
@@ -123,9 +128,14 @@
 
       <!-- P2 Stats -->
       <div class="player-hud p2-hud">
-        <h2 id="p2-name">Kamen Rider Ichigo</h2>
-        <div class="stat-line"><span id="p2-lp"></span></div>
-        <div class="stat-line"><span id="p2-chi"></span></div>
+        <h2 id="p2-name">Kamen Rider Nigo</h2>
+        <div class="stat-line"><span id="p2-lp" class="stat-value-styled">LP: 2500 / 2500</span></div>
+        <div class="stat-line"><span id="p2-chi" class="stat-value-styled">CHI: 8 / 16</span></div>
+
+        <!-- P2 Chi Track Container -->
+        <div class="chi-bar-wrapper" style="width: 100%; height: 8px; background: #111; border: 1px solid #ff2a5f; margin: 3px 0; border-radius: 2px; overflow: hidden;">
+          <div id="p2-chi-bar-fill" class="chi-bar-fill" style="width: 50%; height: 100%; background: #ff2a5f; transition: width 0.3s;"></div>
+        </div>
 
         <div class="faint-bar-wrapper">
           <span class="faint-label">FAINT</span>
@@ -242,10 +252,8 @@
   <script src="js/storage.js"></script>
   <script src="js/media.js"></script>
   <script src="js/simulator.js"></script>
-<!--  <script src="js/combat.js"></script>  -->
   <script src="js/combat_engine.js"></script>
-<script src="js/match_manager.js"></script>
-  
+  <script src="js/match_manager.js"></script>
   <script src="js/vs_select.js"></script>
   <script src="js/game.js"></script>
   <script src="js/ui.js"></script>
