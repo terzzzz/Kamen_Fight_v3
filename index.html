@@ -14,14 +14,13 @@
   <!-- CHARACTER SELECTION SCREEN (VISIBLE ON BOOT) -->
   <div id="vs-select-screen" class="screen-container">
     <div class="bgm-volume-control"
-      style="position: absolute; top: 15px; right: 20px; display: flex; align-items: center; gap: 8px; font-family: monospace; color: #00ffcc;">
+      style="position: absolute; top: 15px; right: 20px; display: flex; align-items: center; gap: 8px; font-family: monospace; color: #00ffcc; z-index: 50;">
       <label for="bgm-slider">🔊 BGM:</label>
       <input type="range" id="bgm-slider" min="0" max="1" step="0.05" value="0.5" oninput="changeBGMVolume(this.value)"
         style="cursor: pointer; accent-color: #00ffcc;">
     </div>
-    <h1 id="vs-header-text">STEP 1: SELECT PLAYER 1 RIDER</h1>
-
-
+    
+    <h1 id="select-step-title" class="vs-header-title">STEP 1: SELECT PLAYER 1 RIDER</h1>
 
     <div class="selection-layout">
       <!-- P1 Selection Card -->
@@ -70,8 +69,7 @@
     <div class="selection-actions">
       <button id="back-btn" class="nav-btn" onclick="handleBackStep()" disabled>BACK</button>
       <button id="confirm-btn" class="action-btn" onclick="handleConfirmStep()">CONFIRM P1</button>
-      <button id="start-game-btn" class="action-btn start-glow" onclick="validateAndStartMatch()" hidden>START
-        GAME</button>
+      <button id="start-game-btn" class="action-btn start-glow" onclick="validateAndStartMatch()" hidden>START GAME</button>
 
       <!-- SIMULATION CONTROLS -->
       <div class="sim-controls" style="display: inline-flex; align-items: center; gap: 8px; margin-left: 10px;">
@@ -149,48 +147,75 @@
 
     <!-- BATTLE VIEWPORT -->
     <div class="battle-viewport">
+      <!-- Player 1 Box -->
       <div class="player-box" id="p1-box">
+        <div id="p1-stun-overlay" class="stun-overlay" hidden>FAINTED!</div>
         <video id="p1-video" autoplay muted playsinline></video>
         <img id="p1-sprite" hidden>
+        <div class="player-charge-container">
+          <div class="player-charge-track">
+            <div id="p1-charge-fill" class="player-charge-fill" style="width: 0%;"></div>
+            <span id="p1-charge-text" class="player-charge-text">READY</span>
+          </div>
+        </div>
       </div>
 
+      <!-- Center Cutscene Box -->
       <div class="center-action-box" id="center-box" hidden>
         <video id="center-video" autoplay muted playsinline></video>
       </div>
 
+      <!-- Player 2 Box -->
       <div class="player-box" id="p2-box">
+        <div id="p2-stun-overlay" class="stun-overlay" hidden>FAINTED!</div>
         <video id="p2-video" autoplay muted playsinline></video>
         <img id="p2-sprite" hidden>
+        <div class="player-charge-container">
+          <div class="player-charge-track">
+            <div id="p2-charge-fill" class="player-charge-fill" style="width: 0%;"></div>
+            <span id="p2-charge-text" class="player-charge-text">READY</span>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- CONTROLS PANEL -->
-    <div class="controls-panel" id="human-control-panel">
-      <div class="charge-bar-wrapper">
-        <div id="charge-status-display" class="charge-status">TAP DIRECTION TO CHARGE</div>
-        <div class="charge-track">
-          <div id="p1-charge-fill" class="charge-fill" style="width: 0%;">0%</div>
+    <!-- DUAL CONTROLS PANEL (SUPPORTS 1P & LOCAL 2P) -->
+    <div class="dual-controls-panel" id="human-control-panel">
+      <!-- P1 Pad Container -->
+      <div class="compact-pad-container p1-side" id="p1-controls">
+        <div class="pad-label">PLAYER 1 [W-A-S-D + I-J-K-L]</div>
+        <div class="charge-bar-wrapper" style="width: 100%; margin-bottom: 4px;">
+          <div id="charge-status-display" class="charge-status" style="font-size: 0.7rem; width: 100%; text-align: center;">TAP DIRECTION TO CHARGE</div>
+          <div id="p1-action-flag" class="action-flag" hidden>LOCKED!</div>
         </div>
-        <div id="p1-action-flag" class="action-flag" hidden>LOCKED!</div>
+        <div class="pad-grid-4x2">
+          <button class="pad-btn p1-btn dir-btn" id="key-W">W</button>
+          <button class="pad-btn p1-btn dir-btn" id="key-A">A</button>
+          <button class="pad-btn p1-btn dir-btn" id="key-S">S</button>
+          <button class="pad-btn p1-btn dir-btn" id="key-D">D</button>
+          <button class="pad-btn p1-act act-btn" id="key-I">I</button>
+          <button class="pad-btn p1-act act-btn" id="key-J">J</button>
+          <button class="pad-btn p1-act act-btn" id="key-K">K</button>
+          <button class="pad-btn p1-act act-btn" id="key-L">L</button>
+        </div>
       </div>
 
-      <div class="pad-container">
-        <div class="d-pad">
-          <button class="pad-btn" id="key-W">W</button>
-          <div class="d-pad-middle">
-            <button class="pad-btn" id="key-A">A</button>
-            <button class="pad-btn" id="key-S">S</button>
-            <button class="pad-btn" id="key-D">D</button>
-          </div>
+      <!-- P2 Touch Control Pad (For Local 2P Mode) -->
+      <div class="compact-pad-container p2-side" id="p2-controls" hidden>
+        <div class="pad-label">PLAYER 2 [ARROWS + 1-2-3-5]</div>
+        <div class="charge-bar-wrapper" style="width: 100%; margin-bottom: 4px;">
+          <div id="p2-charge-status-display" class="charge-status" style="font-size: 0.7rem; width: 100%; text-align: center; color: #ff2a5f;">P2 TOUCH READY</div>
+          <div id="p2-action-flag" class="action-flag" hidden>LOCKED!</div>
         </div>
-
-        <div class="action-pad">
-          <button class="pad-btn" id="key-I">I</button>
-          <div class="action-pad-middle">
-            <button class="pad-btn" id="key-J">J</button>
-            <button class="pad-btn" id="key-K">K</button>
-            <button class="pad-btn" id="key-L">L</button>
-          </div>
+        <div class="pad-grid-4x2">
+          <button class="pad-btn p2-btn" id="p2-key-W">▲</button>
+          <button class="pad-btn p2-btn" id="p2-key-A">◄</button>
+          <button class="pad-btn p2-btn" id="p2-key-S">▼</button>
+          <button class="pad-btn p2-btn" id="p2-key-D">►</button>
+          <button class="pad-btn p2-act" id="p2-key-I">5</button>
+          <button class="pad-btn p2-act" id="p2-key-J">1</button>
+          <button class="pad-btn p2-act" id="p2-key-K">2</button>
+          <button class="pad-btn p2-act" id="p2-key-L">3</button>
         </div>
       </div>
     </div>
