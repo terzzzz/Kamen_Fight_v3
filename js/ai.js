@@ -166,7 +166,6 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
   }
 
   // --- HARD DIFFICULTY ---
-  // Initialize persistent memory on the CPU player object
   if (!cpuPlayer.memory) {
     cpuPlayer.memory = {
       recentMoves: [],
@@ -178,7 +177,6 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
   const mem = cpuPlayer.memory;
   const currentChi = cpuPlayer.chi || 0;
 
-  // 1. Dynamic Strategy Transition (Prevents immediate Chi-dump loops)
   if (currentChi >= mem.targetChiGoal) {
     mem.strategy = 'BURST';
   } else if (currentChi <= 2) {
@@ -199,34 +197,29 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
     let score = 0;
     const isD = key.startsWith('D');
     const isS = key.startsWith('S');
-    const isW = key.startsWith('W');
     const cost = m.chiCost || 0;
 
-    // 1. Damage Output Weighting
     const baseDmg = m.baseDamage || 0;
     const hitRate = (m.hitChance || 80) / 100;
     score += (baseDmg * hitRate) * riderProfile.weights.W_LP;
 
-    // 2. Chi Hoarding & Efficiency Weighting
     if (mem.strategy === 'HOARD' && isS && cost < mem.targetChiGoal) {
-      score -= 50; // Penalize dumping Chi on small S moves when saving for a finisher
+      score -= 50;
     } else if (mem.strategy === 'BURST' && isS) {
-      score += cost * 12; // Reward unleashing heavy S moves when goal is met
+      score += cost * 12;
     }
 
     if (cost === 0 && isD) {
       const chiGain = (m.chiRefundOnHit || 0) + 2;
       score += chiGain * riderProfile.weights.W_CHI;
-      if (key !== 'D+J') score += 10; // Variety bonus for non-standard D moves
+      if (key !== 'D+J') score += 10;
     } else {
       score -= cost * (riderProfile.weights.W_CHI * 0.5);
     }
 
-    // 3. Anti-Repetition Penalty (Prevents repeating the same single move)
     const timesUsed = mem.recentMoves.filter(k => k === key).length;
     score -= timesUsed * 35;
 
-    // 4. Faint Meter & Utility Valuation
     if (m.faintRecovery && cpuPlayer.faintMeter > 30) {
       score += (m.faintRecovery * (cpuPlayer.faintMeter / 100)) * riderProfile.weights.W_FAINT * 1.5;
     }
@@ -240,7 +233,6 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
       score += 45;
     }
 
-    // 5. Historical Win Rate Adjustment
     const memKey = `${cpuPlayer.id}_vs_${oppId}_${key}`;
     const memData = window.globalAIKnowledge.memoryStore[memKey];
     if (memData && memData.uses > 3) {
@@ -248,7 +240,6 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
       score += winRatio * 30;
     }
 
-    // 6. Opponent Habit Exploitation
     if (oppProfile && oppProfile.totalRounds > 5) {
       const guardRatio = oppProfile.guardCount / oppProfile.totalRounds;
       if (guardRatio > 0.4 && m.unblockable) {
@@ -256,7 +247,6 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
       }
     }
 
-    // Small random variance to keep CPU choices unpredictable
     score += Math.random() * 8;
 
     if (score > bestScore) {
@@ -265,13 +255,63 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
     }
   });
 
-  // Track recent moves in CPU memory for anti-repetition decay
   mem.recentMoves.push(bestKey);
   if (mem.recentMoves.length > 3) {
     mem.recentMoves.shift();
   }
 
   return bestKey;
+};
+
+/**
+ * Real-time Charge Target & Delay Calculation Bridge
+ */
+window.selectCPUMoveAndCharge = function(cpuPlayer, opponentPlayer, slotKey) {
+  const movesData = slotKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
+  const difficulty = slotKey === 'p1'
+    ? (window.gameState.matchConfig?.p1Difficulty || 'normal')
+    : (window.gameState.matchConfig?.p2Difficulty || 'normal');
+
+  let availableMoves = {};
+  if (movesData) {
+    Object.keys(movesData).forEach(key => {
+      const m = movesData[key];
+      if (m && (m.chiCost || 0) <= cpuPlayer.chi) {
+        availableMoves[key] = m;
+      }
+    });
+  }
+
+  const chosenMoveKey = window.selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
+
+  let targetChargePct = 100;
+  if (difficulty === 'easy') {
+    targetChargePct = Math.floor(Math.random() * 35) + 55;
+  } else if (difficulty === 'normal') {
+    targetChargePct = Math.floor(Math.random() * 20) + 80;
+  } else {
+    targetChargePct = Math.floor(Math.random() * 10) + 90;
+  }
+
+  return {
+    moveKey: chosenMoveKey,
+    targetChargePct: targetChargePct
+  };
+};
+
+window.calculateCPUCharge = function(cpuPlayer, opponentPlayer, moveKey, difficulty) {
+  let targetPct = 85;
+  let delayMs = 1200;
+
+  if (difficulty === 'easy') {
+    targetPct = Math.floor(Math.random() * 30) + 60;
+    delayMs = Math.floor(Math.random() * 800) + 1400;
+  } else if (difficulty === 'hard') {
+    targetPct = Math.floor(Math.random() * 10) + 90;
+    delayMs = Math.floor(Math.random() * 400) + 600;
+  }
+
+  return { chargePercent: targetPct, chargeDelayMs: delayMs };
 };
 
 /**
