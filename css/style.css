@@ -1,6 +1,7 @@
 /* ==========================================================================
    GAME ENGINE MAIN STYLESHEET - css/style.css
-   Full Viewport Utilization, Desktop/Mobile Responsive Alignment
+   Full Viewport Utilization, Real-Time Dynamic Charge Bars,
+   Single-Side 4x2 Button Grid & Dual-Player (16-Button) Support
    ========================================================================== */
 
 /* FORCE HIDDEN SCREENS & ELEMENTS TO REMAIN HIDDEN */
@@ -19,6 +20,8 @@
   --text-yellow: #ffcc00;
   --text-red: #ff2a5f;
   --text-main: #e2e8f0;
+  --charge-cyan: #00ffcc;
+  --charge-locked: #ffcc00;
 }
 
 * {
@@ -66,7 +69,7 @@ body {
   overflow: hidden;
 }
 
-/* CHARACTER SELECTION SCREEN STYLES (DESKTOP & MOBILE FIX) */
+/* CHARACTER SELECTION SCREEN STYLES */
 #vs-select-screen {
   display: flex;
   flex-direction: column;
@@ -87,7 +90,6 @@ body {
   flex-shrink: 0;
 }
 
-/* CENTER CONSTRAINED SELECTION LAYOUT FOR WIDESCREEN */
 .selection-layout {
   display: flex;
   flex-direction: row;
@@ -101,7 +103,6 @@ body {
   gap: 16px;
 }
 
-/* CONSTRAINED RIDER CARDS FOR DESKTOP & TABLET */
 .rider-card {
   flex: 0 1 340px;
   width: 100%;
@@ -135,7 +136,6 @@ body {
   white-space: nowrap;
 }
 
-/* TALLER PORTRAIT BOX WITH GUARANTEED FULL FACIAL/HELMET CONTAINMENT */
 .portrait-box {
   width: 100%;
   height: 230px;
@@ -149,7 +149,6 @@ body {
   margin: 6px 0;
 }
 
-/* FORCES ENTIRE HELMET & MOUTH TO FIT INSIDE BOX WITHOUT VERTICAL CROPPING */
 .portrait-box img {
   width: 100% !important;
   height: 100% !important;
@@ -254,13 +253,8 @@ body {
 }
 
 @keyframes smoothVsPulse {
-  0% {
-    transform: skewX(-10deg) scale(1);
-  }
-
-  100% {
-    transform: skewX(-10deg) scale(1.04);
-  }
+  0% { transform: skewX(-10deg) scale(1); }
+  100% { transform: skewX(-10deg) scale(1.04); }
 }
 
 .error-banner {
@@ -314,13 +308,8 @@ body {
 }
 
 @keyframes pulseYellow {
-  0% {
-    box-shadow: 0 0 5px var(--text-yellow);
-  }
-
-  100% {
-    box-shadow: 0 0 20px var(--text-yellow);
-  }
+  0% { box-shadow: 0 0 5px var(--text-yellow); }
+  100% { box-shadow: 0 0 20px var(--text-yellow); }
 }
 
 /* TOP HUD BAR */
@@ -359,7 +348,6 @@ body {
   font-weight: bold;
 }
 
-/* SINGLE-LINE NON-WRAPPING FLEX CONTAINER FOR CHI DISPLAY */
 .stat-line-chi {
   display: flex !important;
   align-items: center !important;
@@ -367,13 +355,8 @@ body {
   white-space: nowrap !important;
 }
 
-.p1-hud .stat-line-chi {
-  justify-content: flex-start;
-}
-
-.p2-hud .stat-line-chi {
-  justify-content: flex-end;
-}
+.p1-hud .stat-line-chi { justify-content: flex-start; }
+.p2-hud .stat-line-chi { justify-content: flex-end; }
 
 .stat-label {
   font-family: 'Impact', 'Trebuchet MS', sans-serif;
@@ -494,7 +477,7 @@ body {
   margin-top: 2px;
 }
 
-/* PRIMARY GOLDEN VS BANNER (MULTILINE WRAPPING FIX) */
+/* PRIMARY BANNERS */
 .battle-banner {
   background: rgba(0, 0, 0, 0.92);
   border: 2px solid var(--text-yellow);
@@ -511,7 +494,6 @@ body {
   letter-spacing: 0.5px;
 }
 
-/* SECONDARY GOLDEN ACTION BANNER */
 .action-sub-banner,
 .action-overlay-label {
   position: static;
@@ -550,19 +532,73 @@ body {
   border: 2px solid #222;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .player-box.blanked video {
   opacity: 0.15;
 }
 
-/* SIDE VIDEO FIT FIX (FITS ENTIRE CHARACTER IN FRAME) */
 .player-box video {
   width: 100%;
   height: 100%;
   object-fit: contain;
   object-position: center;
   background: #000;
+  flex: 1;
+}
+
+/* REAL-TIME DYNAMIC PLAYER CHARGE BARS (BOX-WIDTH MATCHING) */
+.player-charge-container {
+  width: 100%;
+  padding: 2px 4px 4px 4px;
+  background: #000;
+  border-top: 1px solid #222;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.player-charge-track {
+  width: 100%;
+  height: 18px;
+  background-color: #0a0d14;
+  border: 1px solid #1a2332;
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.9);
+}
+
+.player-charge-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #006688, var(--charge-cyan));
+  box-shadow: 0 0 8px var(--charge-cyan);
+  transition: width 0.03s linear;
+}
+
+.player-charge-fill.locked {
+  background: linear-gradient(90deg, #aa6600, var(--charge-locked)) !important;
+  box-shadow: 0 0 10px var(--charge-locked) !important;
+}
+
+.player-charge-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Courier New', monospace;
+  font-size: clamp(0.65rem, 1.8vw, 0.8rem);
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow: 1px 1px 2px #000000, -1px -1px 2px #000000;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .p2-mirror-palette {
@@ -581,7 +617,6 @@ body {
   overflow: hidden;
 }
 
-/* CENTER ACTION VIDEO FIT FIX */
 .center-action-box video {
   width: 100%;
   height: 100%;
@@ -597,14 +632,13 @@ body {
   transform: scaleX(-1);
 }
 
-/* OPTIONAL SPECIFIC FLIP FOR V3 AS P1 */
 #p1-box video[src*="v3"],
 #p1-box img[src*="v3"],
 .v3-p1-flip {
   transform: scaleX(-1);
 }
 
-/* CONSTRAINED FLOATING DAMAGE POPUPS */
+/* FLOATING DAMAGE POPUPS */
 .damage-popup {
   position: absolute;
   top: 35%;
@@ -659,24 +693,25 @@ body {
     opacity: 0;
     transform: translate(-50%, 20px) scale(0.8);
   }
-
   15% {
     opacity: 1;
     transform: translate(-50%, 0) scale(1.15);
   }
-
   75% {
     opacity: 1;
     transform: translate(-50%, -20px) scale(1);
   }
-
   100% {
     opacity: 0;
     transform: translate(-50%, -40px) scale(0.9);
   }
 }
 
-/* CONTROLS PANEL */
+/* ==========================================================================
+   CONTROLS PANELS & BUTTON LAYOUTS
+   Supports: Single-Side 4x2 Compact Grid & Dual 16-Button Local 2P Layout
+   ========================================================================== */
+
 .controls-panel {
   background: #000;
   border: 2px solid var(--border-cyan);
@@ -724,11 +759,13 @@ body {
   font-weight: bold;
 }
 
+/* STANDARD PAD CONTAINER */
 .pad-container {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 2px 10px;
+  width: 100%;
 }
 
 .d-pad,
@@ -744,16 +781,97 @@ body {
   gap: 4px;
 }
 
+/* COMPACT SINGLE-SIDE / 4x2 GRID CONTAINER */
+.compact-pad-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(10, 13, 20, 0.95);
+  border: 2px solid var(--border-cyan);
+  border-radius: 6px;
+  padding: 6px;
+  max-width: 280px;
+  box-shadow: 0 0 10px rgba(0, 255, 204, 0.15);
+}
+
+.pad-label {
+  font-size: clamp(0.65rem, 1.8vw, 0.75rem);
+  font-weight: 900;
+  color: var(--border-cyan);
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+  text-align: center;
+  text-shadow: 0 0 6px var(--border-cyan);
+}
+
+.pad-grid-4x2 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+
+/* 16-BUTTON DUAL PLAYER CONTROLS PANEL */
+.dual-controls-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 6px 12px;
+  background: #000;
+  border-top: 2px solid var(--border-cyan);
+  box-sizing: border-box;
+  gap: 12px;
+}
+
+.compact-pad-container.p1-side {
+  border-color: var(--border-cyan);
+}
+
+.compact-pad-container.p2-side {
+  border-color: var(--text-red);
+}
+
+.p1-side .pad-label { color: var(--border-cyan); text-shadow: 0 0 6px var(--border-cyan); }
+.p2-side .pad-label { color: var(--text-red); text-shadow: 0 0 6px var(--text-red); }
+
+/* BUTTON STYLES & CATEGORY COLOR CODING */
 .pad-btn {
-  width: clamp(40px, 11vw, 52px);
-  height: clamp(40px, 11vw, 52px);
+  width: clamp(38px, 9vw, 50px);
+  height: clamp(38px, 9vw, 50px);
   background: #1a2235;
   border: 2px solid var(--border-cyan);
   color: #fff;
   font-weight: 900;
-  font-size: 1.1rem;
+  font-size: clamp(0.9rem, 2.5vw, 1.1rem);
   cursor: pointer;
   border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, transform 0.05s;
+}
+
+.pad-btn.dir-btn,
+.pad-btn.p1-btn {
+  border-color: var(--border-cyan);
+  color: var(--border-cyan);
+}
+
+.pad-btn.act-btn,
+.pad-btn.p1-act {
+  border-color: var(--text-yellow);
+  color: var(--text-yellow);
+}
+
+.pad-btn.p2-btn {
+  border-color: var(--text-red);
+  color: #ffffff;
+}
+
+.pad-btn.p2-act {
+  border-color: #ff8800;
+  color: #ff8800;
 }
 
 .pad-btn:active,
@@ -761,6 +879,14 @@ body {
   background: var(--border-cyan);
   color: #000;
   box-shadow: 0 0 10px var(--border-cyan);
+  transform: scale(0.96);
+}
+
+.p2-side .pad-btn:active,
+.p2-side .pad-btn.active {
+  background: var(--text-red);
+  color: #fff;
+  box-shadow: 0 0 10px var(--text-red);
 }
 
 /* SPLASH TRANSITION SCREEN */
@@ -909,5 +1035,28 @@ body {
   .chi-bar-track {
     width: 90px !important;
     max-width: 90px !important;
+  }
+
+  .player-charge-track {
+    height: 15px;
+  }
+
+  .player-charge-text {
+    font-size: 0.6rem;
+  }
+
+  .compact-pad-container {
+    padding: 4px;
+    max-width: 48vw;
+  }
+
+  .pad-grid-4x2 {
+    gap: 3px;
+  }
+
+  .pad-btn {
+    width: clamp(32px, 10vw, 40px);
+    height: clamp(32px, 10vw, 40px);
+    font-size: 0.8rem;
   }
 }
