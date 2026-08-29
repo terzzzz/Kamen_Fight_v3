@@ -79,7 +79,7 @@ let vsSelectionState = {
   p1IsCPU: false,
   p1Difficulty: 'normal',
   p2Index: 1,
-  p2IsCPU: true,
+  p2IsCPU: true, // Can now be toggled to false for 2-Player Human Mode
   p2Difficulty: 'normal'
 };
 
@@ -157,16 +157,12 @@ function cycleRider(playerKey, direction) {
 
 function toggleControlType(playerKey) {
   const errorBanner = document.getElementById('vs-error-banner');
+  if (errorBanner) errorBanner.hidden = true;
 
   if (playerKey === 'p1' && vsSelectionState.step === 1) {
     vsSelectionState.p1IsCPU = !vsSelectionState.p1IsCPU;
-    if (errorBanner) errorBanner.hidden = true;
-  } else if (playerKey === 'p2') {
-    if (errorBanner) {
-      errorBanner.textContent = 'PLAYER 2 IS LOCKED TO CPU CONTROL ONLY!';
-      errorBanner.hidden = false;
-    }
-    return;
+  } else if (playerKey === 'p2' && vsSelectionState.step === 2) {
+    vsSelectionState.p2IsCPU = !vsSelectionState.p2IsCPU; // Toggles P2 between CPU & HUMAN
   }
   updateSelectionUI();
 }
@@ -177,7 +173,7 @@ function toggleDifficulty(playerKey) {
 
   if (playerKey === 'p1' && vsSelectionState.p1IsCPU && vsSelectionState.step === 1) {
     vsSelectionState.p1Difficulty = nextDiff[vsSelectionState.p1Difficulty] || 'normal';
-  } else if (playerKey === 'p2' && vsSelectionState.step === 2) {
+  } else if (playerKey === 'p2' && vsSelectionState.p2IsCPU && vsSelectionState.step === 2) {
     vsSelectionState.p2Difficulty = nextDiff[vsSelectionState.p2Difficulty] || 'normal';
   }
   updateSelectionUI();
@@ -245,13 +241,18 @@ function updateSelectionUI() {
   if (p2NameEl) p2NameEl.textContent = p2.name;
 
   const p2TypeEl = document.getElementById('p2-type-display');
-  if (p2TypeEl) p2TypeEl.textContent = 'CPU';
+  if (p2TypeEl) p2TypeEl.textContent = vsSelectionState.p2IsCPU ? 'CPU' : 'HUMAN';
 
   const p2DiffDisplay = document.getElementById('p2-diff-display');
   if (p2DiffDisplay) {
-    p2DiffDisplay.textContent = vsSelectionState.p2Difficulty.toUpperCase();
-    p2DiffDisplay.classList.toggle('hard', vsSelectionState.p2Difficulty === 'hard');
-    p2DiffDisplay.classList.toggle('easy', vsSelectionState.p2Difficulty === 'easy');
+    if (!vsSelectionState.p2IsCPU) {
+      p2DiffDisplay.textContent = 'N/A';
+      p2DiffDisplay.classList.remove('hard', 'easy');
+    } else {
+      p2DiffDisplay.textContent = vsSelectionState.p2Difficulty.toUpperCase();
+      p2DiffDisplay.classList.toggle('hard', vsSelectionState.p2Difficulty === 'hard');
+      p2DiffDisplay.classList.toggle('easy', vsSelectionState.p2Difficulty === 'easy');
+    }
   }
 
   const p1Card = document.getElementById('p1-card');
@@ -288,7 +289,7 @@ function updateSelectionUI() {
     if (simBtn) simBtn.disabled = true;
 
   } else if (vsSelectionState.step === 2) {
-    if (headerText) headerText.textContent = 'STEP 2: SELECT PLAYER 2 RIDER (CPU)';
+    if (headerText) headerText.textContent = `STEP 2: SELECT PLAYER 2 RIDER (${vsSelectionState.p2IsCPU ? 'CPU' : 'HUMAN'})`;
     if (p1Card) p1Card.className = 'rider-card locked-slot';
     if (p2Card) p2Card.className = 'rider-card active-slot';
 
@@ -345,7 +346,7 @@ async function handleSimulateMatches() {
   const p1Rider = AVAILABLE_RIDERS[vsSelectionState.p1Index] || AVAILABLE_RIDERS[0];
   const p2Rider = AVAILABLE_RIDERS[vsSelectionState.p2Index] || AVAILABLE_RIDERS[0];
   const p1Diff = vsSelectionState.p1IsCPU ? vsSelectionState.p1Difficulty : 'normal';
-  const p2Diff = vsSelectionState.p2Difficulty;
+  const p2Diff = vsSelectionState.p2IsCPU ? vsSelectionState.p2Difficulty : 'normal';
 
   if (simBtn) {
     simBtn.disabled = true;
@@ -432,8 +433,8 @@ function validateAndStartMatch() {
     p1IsCPU: vsSelectionState.p1IsCPU,
     p1Difficulty: vsSelectionState.p1IsCPU ? vsSelectionState.p1Difficulty : 'normal',
     p2Rider: AVAILABLE_RIDERS[vsSelectionState.p2Index] || AVAILABLE_RIDERS[0],
-    p2IsCPU: true,
-    p2Difficulty: vsSelectionState.p2Difficulty
+    p2IsCPU: vsSelectionState.p2IsCPU, // Respects 2-Player Human Mode selection
+    p2Difficulty: vsSelectionState.p2IsCPU ? vsSelectionState.p2Difficulty : 'normal'
   };
 
   if (typeof startBattle === 'function') {
