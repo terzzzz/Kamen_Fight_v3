@@ -1062,4 +1062,56 @@ body {
     height: clamp(32px, 10vw, 40px);
     font-size: 0.8rem;
   }
+
+   /* ==========================================================================
+   CHI THRESHOLD STATE STYLES (LOW POWER & FULL POWER)
+   ========================================================================== */
+
+/* Low Power State (Chi < 5) */
+.chi-text-low {
+  color: #ff2a5f !important;
+  text-shadow: 0 0 10px rgba(255, 42, 95, 0.9), 2px 2px 0px #000 !important;
+}
+
+.chi-bar-low {
+  background: #ff2a5f !important;
+  box-shadow: 0 0 10px #ff2a5f !important;
+}
+
+.buff-tag.debuff-low-power {
+  border-color: #ff2a5f !important;
+  color: #ff2a5f !important;
+  background: rgba(255, 42, 95, 0.15) !important;
+  box-shadow: 0 0 8px rgba(255, 42, 95, 0.5) !important;
+  animation: pulseLowPower 1.2s infinite alternate ease-in-out;
+}
+
+@keyframes pulseLowPower {
+  0% { box-shadow: 0 0 4px rgba(255, 42, 95, 0.4); }
+  100% { box-shadow: 0 0 12px rgba(255, 42, 95, 0.9); }
+}
+
+/* Full Power State (Chi > 14) */
+.chi-text-full {
+  color: #ffcc00 !important;
+  text-shadow: 0 0 10px rgba(255, 204, 0, 0.9), 2px 2px 0px #000 !important;
+}
+
+.chi-bar-full {
+  background: linear-gradient(90deg, #ff8800, #ffcc00) !important;
+  box-shadow: 0 0 12px #ffcc00 !important;
+}
+
+.buff-tag.buff-full-power {
+  border-color: #ffcc00 !important;
+  color: #ffcc00 !important;
+  background: rgba(255, 204, 0, 0.18) !important;
+  box-shadow: 0 0 8px rgba(255, 204, 0, 0.6) !important;
+  animation: pulseFullPower 1.2s infinite alternate ease-in-out;
+}
+
+@keyframes pulseFullPower {
+  0% { box-shadow: 0 0 4px rgba(255, 204, 0, 0.4); }
+  100% { box-shadow: 0 0 14px rgba(255, 204, 0, 0.9); }
+}
 }
