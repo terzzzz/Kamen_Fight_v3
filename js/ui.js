@@ -1,9 +1,11 @@
 /**
- * Character Selection, BGM Manager & Match Simulator Controller
- * Path: js/vs_select.js
+ * Character Selection, BGM Manager, Match Simulator & Battle HUD Controller
+ * Path: js/ui.js
  */
 
-// BGM Audio Controllers
+// ==========================================================================
+// 1. BGM AUDIO CONTROLLERS
+// ==========================================================================
 let selectionBGM = null;
 let battleBGM = null;
 
@@ -59,7 +61,9 @@ function stopBattleBGM() {
   }
 }
 
-// Fallback Roster Storage
+// ==========================================================================
+// 2. CHARACTER SELECTION STATE & ROSTER STORAGE
+// ==========================================================================
 let AVAILABLE_RIDERS = [
   { id: 'ichigo', name: 'Kamen Rider Ichigo', icon: 'assets/images/icons/ichigo.png', maxLp: 1850 },
   { id: 'nigo', name: 'Kamen Rider Nigo', icon: 'assets/images/icons/nigo.png', maxLp: 2000 },
@@ -303,7 +307,9 @@ function updateSelectionUI() {
   }
 }
 
-// IN-BROWSER BATCH MATCH SIMULATION HANDLER
+// ==========================================================================
+// 3. MATCH SIMULATOR & MATCH START HANDLERS
+// ==========================================================================
 function handleSimulateMatches() {
   if (typeof runBatchSimulation !== 'function') {
     alert('Simulation engine (js/simulator.js) is not loaded!');
@@ -325,7 +331,6 @@ function handleSimulateMatches() {
   }
   if (modal) modal.hidden = false;
 
-  // Asynchronous execution to prevent main UI thread freeze
   setTimeout(() => {
     const res = runBatchSimulation(p1Rider, p2Rider, matchCount, difficulty);
 
@@ -395,4 +400,125 @@ function validateAndStartMatch() {
   if (typeof startBattle === 'function') {
     startBattle(matchConfig);
   }
+}
+
+// ==========================================================================
+// 4. BATTLE HUD MANAGER & THRESHOLD STATUS RENDERER
+// ==========================================================================
+
+/**
+ * Refreshes player LP, Faint, and Chi meters during combat.
+ * Dynamic Chi States:
+ * - Chi < 5  => Red styling + "LOW POWER (DEF -25%)" tag
+ * - Chi > 14 => Gold styling + "FULL POWER (ATK/ACC +20%)" tag
+ */
+function updatePlayerHUD(slotKey, playerObj) {
+  if (!playerObj) return;
+
+  const isP1 = slotKey === 'p1';
+
+  const nameEl = document.getElementById(isP1 ? 'p1-name' : 'p2-name');
+  const lpEl = document.getElementById(isP1 ? 'p1-lp' : 'p2-lp');
+  const chiEl = document.getElementById(isP1 ? 'p1-chi' : 'p2-chi');
+  const chiBarFillEl = document.getElementById(isP1 ? 'p1-chi-bar-fill' : 'p2-chi-bar-fill');
+  const faintFillEl = document.getElementById(isP1 ? 'p1-faint-fill' : 'p2-faint-fill');
+  const buffTrayEl = document.getElementById(isP1 ? 'p1-buff-tray' : 'p2-buff-tray');
+
+  // 1. Name & LP Display
+  if (nameEl) nameEl.textContent = playerObj.name || (isP1 ? 'Player 1' : 'Player 2');
+  if (lpEl) lpEl.textContent = `LP: ${playerObj.lp} / ${playerObj.maxLp}`;
+
+  // 2. Faint Meter Fill Height
+  if (faintFillEl) {
+    const faintPct = Math.min(100, Math.max(0, playerObj.faintMeter || 0));
+    faintFillEl.style.height = `${faintPct}%`;
+  }
+
+  // 3. Chi Figure & Bar Threshold Styling
+  const chi = playerObj.chi || 0;
+  const maxChi = playerObj.maxChi || 16;
+  if (chiEl) chiEl.textContent = `CHI: ${chi} / ${maxChi}`;
+
+  if (chiBarFillEl) {
+    const chiPct = Math.min(100, Math.max(0, (chi / maxChi) * 100));
+    chiBarFillEl.style.width = `${chiPct}%`;
+  }
+
+  if (chi < 5) {
+    if (chiEl) chiEl.className = 'stat-value-styled chi-text-low';
+    if (chiBarFillEl) chiBarFillEl.className = 'chi-bar-fill chi-bar-low';
+  } else if (chi > 14) {
+    if (chiEl) chiEl.className = 'stat-value-styled chi-text-full';
+    if (chiBarFillEl) chiBarFillEl.className = 'chi-bar-fill chi-bar-full';
+  } else {
+    if (chiEl) chiEl.className = 'stat-value-styled';
+    if (chiBarFillEl) chiBarFillEl.className = 'chi-bar-fill';
+  }
+
+  // 4. Buff Tray Injection (Active Buffs + Low/Full Power Status Badges)
+  let activeTags = [];
+
+  if (playerObj.activeBuffs && Array.isArray(playerObj.activeBuffs)) {
+    activeTags = [...playerObj.activeBuffs];
+  }
+
+  if (chi < 5) {
+    activeTags.push({
+      id: 'low_power_tag',
+      label: 'LOW POWER (DEF -25%)',
+      type: 'debuff-low-power'
+    });
+  } else if (chi > 14) {
+    activeTags.push({
+      id: 'full_power_tag',
+      label: 'FULL POWER (ATK/ACC +20%)',
+      type: 'buff-full-power'
+    });
+  }
+
+  if (buffTrayEl) {
+    buffTrayEl.innerHTML = activeTags.map(tag => `
+      <span class="buff-tag ${tag.type || ''}">${tag.label}</span>
+    `).join('');
+  }
+}
+
+/**
+ * Floating Damage / Healing / Miss Popups
+ */
+function showDamagePopup(boxId, text, type = 'damage') {
+  const box = document.getElementById(boxId);
+  if (!box) return;
+
+  const popup = document.createElement('div');
+  popup.className = `damage-popup ${type}`;
+  popup.textContent = text;
+
+  box.appendChild(popup);
+
+  setTimeout(() => {
+    if (popup && popup.parentNode) {
+      popup.parentNode.removeChild(popup);
+    }
+  }, 2500);
+}
+
+/**
+ * Primary Banner Text Broadcaster
+ */
+function showBattleBanner(message) {
+  const banner = document.getElementById('battle-message');
+  if (!banner) return;
+  banner.textContent = message;
+  banner.hidden = !message;
+}
+
+/**
+ * Action Overlay Sub-Banner Broadcaster
+ */
+function showActionBanner(message) {
+  const subBanner = document.getElementById('center-action-label');
+  if (!subBanner) return;
+  subBanner.textContent = message;
+  subBanner.hidden = !message;
 }
