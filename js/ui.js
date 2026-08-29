@@ -8,6 +8,13 @@
 // ==========================================================================
 let selectionBGM = null;
 let battleBGM = null;
+let currentVolume = 0.5;
+
+function changeBGMVolume(val) {
+  currentVolume = parseFloat(val);
+  if (selectionBGM) selectionBGM.volume = currentVolume;
+  if (battleBGM) battleBGM.volume = currentVolume;
+}
 
 function playSelectionBGM() {
   if (selectionBGM) return;
@@ -15,7 +22,7 @@ function playSelectionBGM() {
   try {
     selectionBGM = new Audio('assets/sounds/matchup.mp3');
     selectionBGM.loop = true;
-    selectionBGM.volume = 0.5;
+    selectionBGM.volume = currentVolume;
 
     const playPromise = selectionBGM.play();
     if (playPromise !== undefined) {
@@ -42,7 +49,7 @@ function playBattleBGM() {
   try {
     battleBGM = new Audio('assets/sounds/matchup1.mp3');
     battleBGM.loop = true;
-    battleBGM.volume = 0.5;
+    battleBGM.volume = currentVolume;
 
     const playPromise = battleBGM.play();
     if (playPromise !== undefined) {
@@ -237,7 +244,7 @@ function updateSelectionUI() {
 
   const p1Card = document.getElementById('p1-card');
   const p2Card = document.getElementById('p2-card');
-  const headerText = document.getElementById('vs-header-text');
+  const headerText = document.getElementById('select-step-title') || document.getElementById('vs-header-text');
   const confirmBtn = document.getElementById('confirm-btn');
   const startBtn = document.getElementById('start-game-btn');
   const backBtn = document.getElementById('back-btn');
@@ -522,3 +529,22 @@ function showActionBanner(message) {
   subBanner.textContent = message;
   subBanner.hidden = !message;
 }
+
+// Global Exports
+window.vsSelectionState = vsSelectionState;
+window.changeBGMVolume = changeBGMVolume;
+window.playSelectionBGM = playSelectionBGM;
+window.stopSelectionBGM = stopSelectionBGM;
+window.playBattleBGM = playBattleBGM;
+window.stopBattleBGM = stopBattleBGM;
+window.cycleRider = cycleRider;
+window.toggleControlType = toggleControlType;
+window.toggleDifficulty = toggleDifficulty;
+window.handleConfirmStep = handleConfirmStep;
+window.handleBackStep = handleBackStep;
+window.updateSelectionUI = updateSelectionUI;
+window.validateAndStartMatch = validateAndStartMatch;
+window.updatePlayerHUD = updatePlayerHUD;
+window.showDamagePopup = showDamagePopup;
+window.showBattleBanner = showBattleBanner;
+window.showActionBanner = showActionBanner;
