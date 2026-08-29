@@ -1,5 +1,5 @@
 /**
- * Combat Engine, Real-Time Dual Charge Manager & 2-Player Local Controller
+ * Combat Engine & Turn Resolution Manager
  * Path: js/combat.js
  */
 
@@ -41,21 +41,21 @@ var DO_NOTHING_MOVE = DO_NOTHING_MOVE || {
 
 var FALLBACK_ICHIGO_MOVES = {
   "W+I": { name: "Rider High Jump", type: "UTILITY", chiCost: 3, baseDamage: 0, hitChance: 100, video: "jump.mp4", grantsAirborne: 2 },
-  "W+J": { name: "Typhoon Charge", type: "UTILITY", chiCost: 3, baseDamage: 0, hitChance: 100, video: "charge_up.mp4", buff: { id: "typhoon_speed", label: "CHARGE (+25% SPEED)", type: "speed", duration: 3 } },
-  "W+K": { name: "Typhoon Focus", type: "UTILITY", chiCost: 2, baseDamage: 0, hitChance: 100, video: "charge_up.mp4", buff: { id: "focus", label: "FOCUS (+20% S-ATK)", type: "attack", duration: 2 } },
-  "W+L": { name: "Typhoon Bless", type: "UTILITY", chiCost: 1, baseDamage: 0, hitChance: 100, video: "mind.mp4", faintRecovery: 15 },
-  "D+J": { name: "Standard Punch", type: "PHYSICAL", chiCost: 0, baseDamage: 66, hitChance: 78, video: "punch.mp4", sourceFacing: "right" },
-  "D+K": { name: "Standard Kick", type: "PHYSICAL", chiCost: 0, baseDamage: 86, hitChance: 78, video: "kick.mp4" },
-  "D+L": { name: "Combo Punch", type: "PHYSICAL", chiCost: 1, baseDamage: 132, hitChance: 76, video: "combo_punch.mp4" },
-  "D+I": { name: "Combo Kick", type: "PHYSICAL", chiCost: 1, baseDamage: 121, hitChance: 76, video: "combo_kick.mp4", sourceFacing: "right" },
+  "W+J": { name: "Typhoon Charge", type: "UTILITY", chiCost: 3, baseDamage: 0, hitChance: 100, video: "charge_up.mp4", buff: { id: "charge_speed", label: "CHARGE SPEED +25%", type: "speed", duration: 3 } },
+  "W+K": { name: "Typhoon Focus", type: "UTILITY", chiCost: 2, baseDamage: 0, hitChance: 100, video: "charge_up.mp4", buff: { id: "focus", label: "S-ATK +20%", type: "attack", duration: 2 } },
+  "W+L": { name: "Typhoon Emission", type: "UTILITY", chiCost: 1, baseDamage: 0, hitChance: 100, video: "mind.mp4", faintRecovery: 15 },
+  "D+J": { name: "Standard Punch", type: "PHYSICAL", chiCost: 0, baseDamage: 66, hitChance: 85, video: "punch.mp4" },
+  "D+K": { name: "Standard Kick", type: "PHYSICAL", chiCost: 0, baseDamage: 88, hitChance: 88, video: "kick.mp4" },
+  "D+L": { name: "Combo Punch", type: "PHYSICAL", chiCost: 1, baseDamage: 132, hitChance: 82, video: "combo_punch.mp4" },
+  "D+I": { name: "Combo Kick", type: "PHYSICAL", chiCost: 1, baseDamage: 121, hitChance: 85, video: "combo_kick.mp4", unmirrored: true },
   "S+J": { name: "Rider Power Chop", type: "SPECIAL", chiCost: 3, baseDamage: 200, hitChance: 80, video: "power_chop.mp4" },
   "S+K": { name: "Rider Head Crusher", type: "SPECIAL", chiCost: 4, baseDamage: 240, hitChance: 75, video: "head_crusher.mp4" },
   "S+L": { name: "Rider Kick", type: "SPECIAL", chiCost: 6, baseDamage: 430, hitChance: 70, video: "rider_kick.mp4" },
-  "S+I": { name: "Kirimomi Kick", type: "SPECIAL", chiCost: 10, baseDamage: 550, hitChance: 76, video: "kirimomi_kick.mp4", sourceFacing: "right" },
-  "A+I": { name: "Windmill Guard", type: "DEFENSE", chiCost: 3, baseDamage: 0, hitChance: 100, video: "windmill_guard.mp4" },
-  "A+J": { name: "Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" },
-  "A+K": { name: "Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" },
-  "A+L": { name: "Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" }
+  "S+I": { name: "Kirimomi Kick", type: "SPECIAL", chiCost: 10, baseDamage: 550, hitChance: 76, video: "kirimomi_kick.mp4" },
+  "A+I": { name: "Windmill Guard", type: "DEFENSE", chiCost: 3, baseDamage: 0, hitChance: 100, video: "windmill_guard.mp4", unmirrored: true },
+  "A+J": { name: "High Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" },
+  "A+K": { name: "Mid Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" },
+  "A+L": { name: "Side Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" }
 };
 
 if (!window.gameState) {
@@ -75,7 +75,9 @@ if (!window.gameState) {
     p2SelectedMoveKey: null,
     p1IsConfirmed: false,
     p2IsConfirmed: false,
+    p1LockInTime: 0,
     p2LockInTime: 0,
+    p2ActiveChargePercent: 100,
     input: {
       acceptingInputs: false,
       heldDirection: null,
@@ -92,9 +94,6 @@ if (!window.gameState) {
   };
 }
 
-/**
- * Simulates a visual button tap on the screen for CPU inputs or programmatic triggers
- */
 function simulateCPUButtonPress(btnKey, slotKey) {
   if (!btnKey) return;
   const possibleIds = [
@@ -117,13 +116,10 @@ function simulateCPUButtonPress(btnKey, slotKey) {
 }
 window.simulateCPUButtonPress = simulateCPUButtonPress;
 
-/* ==========================================================================
-   REAL-TIME DYNAMIC CHARGE BAR MANAGER (P1 & P2)
-   ========================================================================== */
-
+/* Real-Time Charge Progress Systems */
 function startPlayerCharge(slotKey, dirKey, targetPercent = 100) {
-  const player = gameState[slotKey];
-  if (!player || player.isFainted || gameState.roundPhase !== 'INPUT') return;
+  const player = window.gameState[slotKey];
+  if (!player || player.isFainted || window.gameState.roundPhase !== 'INPUT') return;
 
   if (!player.chargeState) {
     player.chargeState = { interval: null, heldDir: null, startTime: 0, currentPercent: 0 };
@@ -137,7 +133,7 @@ function startPlayerCharge(slotKey, dirKey, targetPercent = 100) {
 
   let baseDuration = (window.CHARGE_TIMES && window.CHARGE_TIMES[dirKey]) || 2000;
 
-  if (player.activeBuffs && player.activeBuffs.some(b => b.type === 'speed')) {
+  if (player.activeBuffs && player.activeBuffs.some(b => b.type === 'speed' || b.id === 'charge_speed')) {
     baseDuration *= 0.75;
   }
   if (player.activeBuffs && player.activeBuffs.some(b => b.id === 'rope_bind')) {
@@ -150,7 +146,7 @@ function startPlayerCharge(slotKey, dirKey, targetPercent = 100) {
   if (fillEl) fillEl.classList.remove('locked');
 
   player.chargeState.interval = setInterval(() => {
-    if (gameState.roundPhase !== 'INPUT') {
+    if (window.gameState.roundPhase !== 'INPUT') {
       clearInterval(player.chargeState.interval);
       return;
     }
@@ -171,7 +167,7 @@ function startPlayerCharge(slotKey, dirKey, targetPercent = 100) {
 }
 
 function freezePlayerChargeBar(slotKey, moveKey) {
-  const player = gameState[slotKey];
+  const player = window.gameState[slotKey];
   if (player && player.chargeState && player.chargeState.interval) {
     clearInterval(player.chargeState.interval);
   }
@@ -194,7 +190,7 @@ function freezePlayerChargeBar(slotKey, moveKey) {
 
 function resetPlayerChargeBars() {
   ['p1', 'p2'].forEach(slot => {
-    const player = gameState[slot];
+    const player = window.gameState[slot];
     if (player && player.chargeState && player.chargeState.interval) {
       clearInterval(player.chargeState.interval);
     }
@@ -215,8 +211,8 @@ function updateControlPanelsVisibility() {
   const p1Panel = document.getElementById('p1-controls') || document.getElementById('human-control-panel');
   const p2Panel = document.getElementById('p2-controls');
 
-  const p1IsHuman = gameState.p1 && !gameState.p1.isCPU;
-  const p2IsHuman = gameState.p2 && !gameState.p2.isCPU;
+  const p1IsHuman = window.gameState.p1 && !window.gameState.p1.isCPU;
+  const p2IsHuman = window.gameState.p2 && !window.gameState.p2.isCPU;
 
   if (p1IsHuman && p2IsHuman) {
     if (dualPanel) dualPanel.style.display = 'flex';
@@ -235,23 +231,15 @@ function updateControlPanelsVisibility() {
   }
 }
 
-/* ==========================================================================
-   COMBAT HELPERS & GAME LOGIC
-   ========================================================================== */
-
+/* Combat Logic Helpers */
 function getAttackerChiGainOnHit(atkMove, atkMoveKey) {
   if (!atkMove || !atkMoveKey) return 0;
-
-  if (typeof atkMove.chiRefundOnHit === 'number' && atkMove.chiRefundOnHit > 0) {
-    return atkMove.chiRefundOnHit;
-  }
-
+  if (typeof atkMove.chiRefundOnHit === 'number' && atkMove.chiRefundOnHit > 0) return atkMove.chiRefundOnHit;
   if (atkMoveKey.startsWith('D')) {
     const cost = atkMove.chiCost || 0;
     if (cost === 0) return 2;
     if (cost === 1) return 3;
   }
-
   return 0;
 }
 
@@ -357,7 +345,7 @@ function applyBuff(player, buffId, label, buffType, durationRounds) {
     label: label,
     type: buffType,
     roundsLeft: durationRounds,
-    appliedRound: gameState.roundCounter
+    appliedRound: window.gameState.roundCounter
   });
   renderBuffTrays();
 }
@@ -365,7 +353,7 @@ function applyBuff(player, buffId, label, buffType, durationRounds) {
 function processRoundBuffs(player) {
   if (!player.activeBuffs) return;
   player.activeBuffs.forEach(b => {
-    if (b.appliedRound !== gameState.roundCounter) {
+    if (b.appliedRound !== window.gameState.roundCounter) {
       b.roundsLeft--;
     }
   });
@@ -375,7 +363,7 @@ function processRoundBuffs(player) {
 
 function renderBuffTrays() {
   ['p1', 'p2'].forEach(slot => {
-    const player = gameState[slot];
+    const player = window.gameState[slot];
     const tray = document.getElementById(`${slot}-buff-tray`);
     if (!tray || !player) return;
 
@@ -395,12 +383,12 @@ function renderBuffTrays() {
 function handleAirborneState(player, moveKey, move) {
   if (move && move.grantsAirborne) {
     player.airborneTicks = move.grantsAirborne;
-    player.airborneAppliedRound = gameState.roundCounter;
+    player.airborneAppliedRound = window.gameState.roundCounter;
     player.airborneChargePercent = player.activeChargePercent !== undefined ? player.activeChargePercent : 100;
   } else if (player.airborneTicks > 0) {
     if (move && move.forcesLanding) {
       player.airborneTicks = 0;
-    } else if (player.airborneAppliedRound !== gameState.roundCounter) {
+    } else if (player.airborneAppliedRound !== window.gameState.roundCounter) {
       player.airborneTicks--;
     }
   }
@@ -416,7 +404,7 @@ function setSideBoxesBlank(isBlank) {
 
 function updateHUD() {
   ['p1', 'p2'].forEach(slot => {
-    const player = gameState[slot];
+    const player = window.gameState[slot];
     if (!player) return;
 
     const nameEl = document.getElementById(`${slot}-name`);
@@ -426,24 +414,10 @@ function updateHUD() {
     if (nameEl) nameEl.textContent = `[${slot.toUpperCase()}] ${player.name}`;
 
     if (lpEl) {
-      if (lpEl.parentElement) {
-        Array.from(lpEl.parentElement.childNodes).forEach(node => {
-          if (node.nodeType === Node.TEXT_NODE && node.nodeValue.includes('LP:')) {
-            node.nodeValue = node.nodeValue.replace(/LP:\s*/gi, '');
-          }
-        });
-      }
       lpEl.innerHTML = `<span class="stat-label">LP:</span> <span class="stat-value-styled">${player.lp} / ${player.maxLp}</span>`;
     }
 
     if (chiEl) {
-      if (chiEl.parentElement) {
-        Array.from(chiEl.parentElement.childNodes).forEach(node => {
-          if (node.nodeType === Node.TEXT_NODE && node.nodeValue.includes('CHI:')) {
-            node.nodeValue = node.nodeValue.replace(/CHI:\s*/gi, '');
-          }
-        });
-      }
       chiEl.className = 'stat-line stat-line-chi';
       const maxChi = player.maxChi || (window.COMBAT_RULES?.MAX_CHI || 16);
       const chiPct = Math.min(100, Math.max(0, (player.chi / maxChi) * 100));
@@ -457,7 +431,7 @@ function updateHUD() {
   });
 
   ['p1', 'p2'].forEach(slot => {
-    const player = gameState[slot];
+    const player = window.gameState[slot];
     const fillEl = document.getElementById(`${slot}-faint-fill`);
     if (fillEl && player) {
       fillEl.style.height = `${player.faintMeter}%`;
@@ -465,7 +439,7 @@ function updateHUD() {
   });
 
   const turnDisp = document.getElementById('turn-display');
-  if (turnDisp) turnDisp.textContent = `ROUND ${gameState.roundCounter}`;
+  if (turnDisp) turnDisp.textContent = `ROUND ${window.gameState.roundCounter}`;
 }
 
 async function applyFaintBuildUp(player, playerKey, customAmount = null) {
@@ -485,30 +459,30 @@ async function applyFaintBuildUp(player, playerKey, customAmount = null) {
 
     triggerFloatingText(playerKey, 'FAINTED!!', 'scratch');
 
-    if (typeof playCenterVideo === 'function') {
-      await playCenterVideo(playerKey, 'faint.mp4', 'FAINTED!');
+    if (typeof window.playCenterVideo === 'function') {
+      await window.playCenterVideo(playerKey, 'faint.mp4', 'FAINTED!');
     }
 
-    if (typeof updateCharacterMedia === 'function') {
-      updateCharacterMedia(playerKey, 'IDLE');
+    if (typeof window.updateCharacterMedia === 'function') {
+      window.updateCharacterMedia(playerKey, 'IDLE');
     }
   }
 }
 
 function getMoveForPlayer(playerKey, moveKey) {
   if (moveKey === 'DO_NOTHING' || !moveKey) return DO_NOTHING_MOVE;
-  const moves = playerKey === 'p1' ? gameState.p1Moves : gameState.p2Moves;
+  const moves = playerKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
   return (moves && moves[moveKey]) || DO_NOTHING_MOVE;
 }
 
 function launchRoundTimer() {
-  gameState.roundPhase = 'INPUT';
+  window.gameState.roundPhase = 'INPUT';
   startRoundCountdown();
 }
 
 function resetRoundState() {
-  if (!gameState.input) {
-    gameState.input = {
+  if (!window.gameState.input) {
+    window.gameState.input = {
       acceptingInputs: false,
       heldDirection: null,
       chargeStartTime: 0,
@@ -519,39 +493,38 @@ function resetRoundState() {
       chargeInterval: null
     };
   } else {
-    if (gameState.input.chargeInterval) clearInterval(gameState.input.chargeInterval);
-    gameState.input.acceptingInputs = false;
-    gameState.input.heldDirection = null;
-    gameState.input.chargeStartTime = 0;
-    gameState.input.currentPercent = 0;
-    gameState.input.isConfirmed = false;
-    gameState.input.selectedMoveKey = null;
-    gameState.input.lockInTime = 0;
-    gameState.input.chargeInterval = null;
+    if (window.gameState.input.chargeInterval) clearInterval(window.gameState.input.chargeInterval);
+    window.gameState.input.acceptingInputs = false;
+    window.gameState.input.heldDirection = null;
+    window.gameState.input.chargeStartTime = 0;
+    window.gameState.input.currentPercent = 0;
+    window.gameState.input.isConfirmed = false;
+    window.gameState.input.selectedMoveKey = null;
+    window.gameState.input.lockInTime = 0;
+    window.gameState.input.chargeInterval = null;
   }
 
-  gameState.p2Input = { heldDirection: null };
+  window.gameState.p2Input = { heldDirection: null };
 
-  gameState.p1SelectedMoveKey = null;
-  gameState.p2SelectedMoveKey = null;
-  gameState.p1IsConfirmed = false;
-  gameState.p2IsConfirmed = false;
+  window.gameState.p1SelectedMoveKey = null;
+  window.gameState.p2SelectedMoveKey = null;
+  window.gameState.p1IsConfirmed = false;
+  window.gameState.p2IsConfirmed = false;
 
-  if (gameState.p1) gameState.p1.activeChargePercent = undefined;
-  if (gameState.p2) gameState.p2.activeChargePercent = undefined;
-  gameState.p2ChargePercent = undefined;
+  if (window.gameState.p1) window.gameState.p1.activeChargePercent = undefined;
+  if (window.gameState.p2) window.gameState.p2.activeChargePercent = undefined;
 
-  gameState.roundPhase = 'INPUT';
+  window.gameState.roundPhase = 'INPUT';
 }
 
 function resetCharge() {
   resetPlayerChargeBars();
-  if (gameState && gameState.input) {
-    if (gameState.input.chargeInterval) clearInterval(gameState.input.chargeInterval);
-    gameState.input.heldDirection = null;
-    gameState.input.currentPercent = 0;
+  if (window.gameState && window.gameState.input) {
+    if (window.gameState.input.chargeInterval) clearInterval(window.gameState.input.chargeInterval);
+    window.gameState.input.heldDirection = null;
+    window.gameState.input.currentPercent = 0;
   }
-  if (gameState) gameState.p2Input = { heldDirection: null };
+  if (window.gameState) window.gameState.p2Input = { heldDirection: null };
 
   ['W', 'A', 'S', 'D'].forEach(dir => {
     const keyEl = document.getElementById(`key-${dir}`);
@@ -567,21 +540,22 @@ function resetCharge() {
 
 function resetTurnInputState() {
   resetCharge();
-  if (!gameState.input) gameState.input = {};
-  gameState.input.acceptingInputs = false;
-  gameState.input.isConfirmed = false;
-  gameState.input.selectedMoveKey = null;
-  gameState.input.lockInTime = 0;
+  if (!window.gameState.input) window.gameState.input = {};
+  window.gameState.input.acceptingInputs = false;
+  window.gameState.input.isConfirmed = false;
+  window.gameState.input.selectedMoveKey = null;
+  window.gameState.input.lockInTime = 0;
 
-  gameState.p2Input = { heldDirection: null };
-  gameState.p1IsConfirmed = false;
-  gameState.p2IsConfirmed = false;
-  gameState.p1SelectedMoveKey = null;
-  gameState.p2SelectedMoveKey = null;
-  gameState.p2LockInTime = 0;
+  window.gameState.p2Input = { heldDirection: null };
+  window.gameState.p1IsConfirmed = false;
+  window.gameState.p2IsConfirmed = false;
+  window.gameState.p1SelectedMoveKey = null;
+  window.gameState.p2SelectedMoveKey = null;
+  window.gameState.p1LockInTime = 0;
+  window.gameState.p2LockInTime = 0;
 
-  if (gameState.p1) delete gameState.p1.activeChargePercent;
-  if (gameState.p2) delete gameState.p2.activeChargePercent;
+  if (window.gameState.p1) delete window.gameState.p1.activeChargePercent;
+  if (window.gameState.p2) delete window.gameState.p2.activeChargePercent;
 
   const flag1El = document.getElementById('p1-action-flag');
   if (flag1El) flag1El.hidden = true;
@@ -591,8 +565,8 @@ function resetTurnInputState() {
 }
 
 function getCPUAggressiveFallback(playerKey) {
-  const moves = playerKey === 'p1' ? gameState.p1Moves : gameState.p2Moves;
-  const player = gameState[playerKey];
+  const moves = playerKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
+  const player = window.gameState[playerKey];
   const chi = player ? player.chi : 0;
 
   if (moves) {
@@ -613,20 +587,20 @@ function getCPUAggressiveFallback(playerKey) {
 }
 
 function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
-  if (cpuPlayer.isFainted || (playerKey === 'p2' && gameState.p2AlwaysIdle)) return 'DO_NOTHING';
+  if (cpuPlayer.isFainted || (playerKey === 'p2' && window.gameState.p2AlwaysIdle)) return 'DO_NOTHING';
 
-  let movesData = playerKey === 'p1' ? gameState.p1Moves : gameState.p2Moves;
+  let movesData = playerKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
   if (!movesData || Object.keys(movesData).length === 0) {
     movesData = typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
   }
 
   const difficulty = playerKey === 'p1' 
-    ? (gameState.matchConfig?.p1Difficulty || 'normal') 
-    : (gameState.matchConfig?.p2Difficulty || 'normal');
+    ? (window.gameState.matchConfig?.p1Difficulty || 'normal') 
+    : (window.gameState.matchConfig?.p2Difficulty || 'normal');
 
   const isOpponentLocked = playerKey === 'p1'
-    ? (gameState.p2IsConfirmed || (gameState.p2 && gameState.p2.isFainted) || gameState.p2AlwaysIdle)
-    : ((gameState.input && gameState.input.isConfirmed) || gameState.p1IsConfirmed || (gameState.p1 && gameState.p1.isFainted));
+    ? (window.gameState.p2IsConfirmed || (window.gameState.p2 && window.gameState.p2.isFainted) || window.gameState.p2AlwaysIdle)
+    : ((window.gameState.input && window.gameState.input.isConfirmed) || window.gameState.p1IsConfirmed || (window.gameState.p1 && window.gameState.p1.isFainted));
 
   let availableMoves = {};
   Object.keys(movesData).forEach(key => {
@@ -659,17 +633,17 @@ function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
 }
 
 function confirmPlayerAction(moveKey, playerKey = 'p1') {
-  if (typeof unlockMobileVideos === 'function') unlockMobileVideos();
+  if (typeof window.unlockMobileVideos === 'function') window.unlockMobileVideos();
 
-  const player = gameState[playerKey];
+  const player = window.gameState[playerKey];
   if (!player) return false;
 
-  const isConfirmed = playerKey === 'p1' ? gameState.p1IsConfirmed : gameState.p2IsConfirmed;
+  const isConfirmed = playerKey === 'p1' ? window.gameState.p1IsConfirmed : window.gameState.p2IsConfirmed;
   if (isConfirmed) return false;
 
   const isOpponentLocked = playerKey === 'p1' 
-    ? (gameState.p2IsConfirmed || (gameState.p2 && gameState.p2.isFainted) || gameState.p2AlwaysIdle)
-    : ((gameState.input && gameState.input.isConfirmed) || gameState.p1IsConfirmed || (gameState.p1 && gameState.p1.isFainted));
+    ? (window.gameState.p2IsConfirmed || (window.gameState.p2 && window.gameState.p2.isFainted) || window.gameState.p2AlwaysIdle)
+    : ((window.gameState.input && window.gameState.input.isConfirmed) || window.gameState.p1IsConfirmed || (window.gameState.p1 && window.gameState.p1.isFainted));
 
   const move = getMoveForPlayer(playerKey, moveKey);
   const isGuardMove = moveKey.startsWith('A+') || (move && move.type === 'DEFENSE');
@@ -700,20 +674,20 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
 
   let newlyConfirmed = false;
 
-  if (playerKey === 'p1' && (!gameState.input || !gameState.input.isConfirmed)) {
-    if (!gameState.input) gameState.input = {};
-    gameState.input.isConfirmed = true;
-    gameState.input.selectedMoveKey = moveKey;
-    gameState.input.lockInTime = gameState.turnTimerSeconds;
-    gameState.p1IsConfirmed = true;
-    gameState.p1SelectedMoveKey = moveKey;
+  if (playerKey === 'p1' && (!window.gameState.input || !window.gameState.input.isConfirmed)) {
+    if (!window.gameState.input) window.gameState.input = {};
+    window.gameState.input.isConfirmed = true;
+    window.gameState.input.selectedMoveKey = moveKey;
+    window.gameState.input.lockInTime = window.gameState.turnTimerSeconds;
+    window.gameState.p1IsConfirmed = true;
+    window.gameState.p1SelectedMoveKey = moveKey;
     newlyConfirmed = true;
 
-    if (!gameState.p1.isCPU) {
+    if (!window.gameState.p1.isCPU) {
       const currentCharge = (player.chargeState && player.chargeState.currentPercent > 0)
         ? player.chargeState.currentPercent 
-        : (gameState.input && gameState.input.currentPercent > 0 ? gameState.input.currentPercent : 100);
-      gameState.p1.activeChargePercent = moveKey === 'DO_NOTHING' ? 100 : currentCharge;
+        : (window.gameState.input && window.gameState.input.currentPercent > 0 ? window.gameState.input.currentPercent : 100);
+      window.gameState.p1.activeChargePercent = moveKey === 'DO_NOTHING' ? 100 : currentCharge;
     }
 
     freezePlayerChargeBar('p1', moveKey);
@@ -721,16 +695,16 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
     const flagEl = document.getElementById('p1-action-flag');
     if (flagEl) {
       flagEl.hidden = false;
-      flagEl.textContent = moveKey === 'DO_NOTHING' ? 'DO NOTHING' : `LOCKED ${gameState.p1.activeChargePercent || 100}%!`;
+      flagEl.textContent = moveKey === 'DO_NOTHING' ? 'DO NOTHING' : `LOCKED ${window.gameState.p1.activeChargePercent || 100}%!`;
     }
-  } else if (playerKey === 'p2' && !gameState.p2IsConfirmed) {
-    gameState.p2IsConfirmed = true;
-    gameState.p2SelectedMoveKey = moveKey;
-    gameState.p2LockInTime = gameState.turnTimerSeconds;
+  } else if (playerKey === 'p2' && !window.gameState.p2IsConfirmed) {
+    window.gameState.p2IsConfirmed = true;
+    window.gameState.p2SelectedMoveKey = moveKey;
+    window.gameState.p2LockInTime = window.gameState.turnTimerSeconds;
     newlyConfirmed = true;
 
-    if (!gameState.p2.isCPU && gameState.p2.activeChargePercent === undefined) {
-      gameState.p2.activeChargePercent = (player.chargeState && player.chargeState.currentPercent > 0) 
+    if (!window.gameState.p2.isCPU && window.gameState.p2.activeChargePercent === undefined) {
+      window.gameState.p2.activeChargePercent = (player.chargeState && player.chargeState.currentPercent > 0) 
         ? player.chargeState.currentPercent 
         : 100;
     }
@@ -740,21 +714,21 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
     const flagEl = document.getElementById('p2-action-flag');
     if (flagEl) {
       flagEl.hidden = false;
-      flagEl.textContent = moveKey === 'DO_NOTHING' ? 'DO NOTHING' : `LOCKED ${gameState.p2.activeChargePercent || 100}%!`;
+      flagEl.textContent = moveKey === 'DO_NOTHING' ? 'DO NOTHING' : `LOCKED ${window.gameState.p2.activeChargePercent || 100}%!`;
     }
   }
 
-  if (newlyConfirmed && gameState.roundPhase === 'INPUT') {
+  if (newlyConfirmed && window.gameState.roundPhase === 'INPUT') {
     const otherKey = playerKey === 'p1' ? 'p2' : 'p1';
-    const otherPlayer = gameState[otherKey];
-    const isOtherConfirmed = otherKey === 'p1' ? (gameState.input && gameState.input.isConfirmed) : gameState.p2IsConfirmed;
+    const otherPlayer = window.gameState[otherKey];
+    const isOtherConfirmed = otherKey === 'p1' ? (window.gameState.input && window.gameState.input.isConfirmed) : window.gameState.p2IsConfirmed;
 
-    if (otherPlayer && !otherPlayer.isFainted && !isOtherConfirmed && !(otherKey === 'p2' && gameState.p2AlwaysIdle)) {
+    if (otherPlayer && !otherPlayer.isFainted && !isOtherConfirmed && !(otherKey === 'p2' && window.gameState.p2AlwaysIdle)) {
       if (otherPlayer.isCPU) {
         const reactionDelay = Math.floor(Math.random() * 500 + 300);
         setTimeout(() => {
-          if (gameState.roundPhase !== 'INPUT') return;
-          const stillConfirmed = otherKey === 'p1' ? (gameState.input && gameState.input.isConfirmed) : gameState.p2IsConfirmed;
+          if (window.gameState.roundPhase !== 'INPUT') return;
+          const stillConfirmed = otherKey === 'p1' ? (window.gameState.input && window.gameState.input.isConfirmed) : window.gameState.p2IsConfirmed;
           if (!stillConfirmed) {
             const chosenKey = getCPUMoveChoice(otherPlayer, player, otherKey);
             confirmPlayerAction(chosenKey, otherKey);
@@ -769,15 +743,15 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
 }
 
 function checkBothPlayersLocked() {
-  if (gameState.roundPhase !== 'INPUT') return;
+  if (window.gameState.roundPhase !== 'INPUT') return;
 
-  const p1Ready = (gameState.input && gameState.input.isConfirmed) || gameState.p1IsConfirmed || (gameState.p1 && gameState.p1.isFainted);
-  const p2Ready = gameState.p2IsConfirmed || (gameState.p2 && gameState.p2.isFainted) || gameState.p2AlwaysIdle;
+  const p1Ready = (window.gameState.input && window.gameState.input.isConfirmed) || window.gameState.p1IsConfirmed || (window.gameState.p1 && window.gameState.p1.isFainted);
+  const p2Ready = window.gameState.p2IsConfirmed || (window.gameState.p2 && window.gameState.p2.isFainted) || window.gameState.p2AlwaysIdle;
 
   if (p1Ready && p2Ready) {
-    if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+    if (window.gameState.timerInterval) clearInterval(window.gameState.timerInterval);
     setTimeout(() => {
-      if (gameState.roundPhase === 'INPUT') {
+      if (window.gameState.roundPhase === 'INPUT') {
         executeTurnResolutionPhase();
       }
     }, 200);
@@ -785,14 +759,14 @@ function checkBothPlayersLocked() {
 }
 
 function startRoundCountdown() {
-  gameState.roundPhase = 'INPUT';
+  window.gameState.roundPhase = 'INPUT';
   resetTurnInputState();
 
   const rules = window.COMBAT_RULES || COMBAT_RULES;
 
-  if (gameState.roundCounter > 1) {
+  if (window.gameState.roundCounter > 1) {
     ['p1', 'p2'].forEach(slot => {
-      const player = gameState[slot];
+      const player = window.gameState[slot];
       if (player) {
         const maxChi = player.maxChi || 16;
         player.chi = Math.min(maxChi, player.chi + 1);
@@ -803,12 +777,12 @@ function startRoundCountdown() {
   updateControlPanelsVisibility();
 
   setTimeout(() => {
-    if (gameState.input) gameState.input.acceptingInputs = true;
+    if (window.gameState.input) window.gameState.input.acceptingInputs = true;
   }, 300);
 
-  // FAINT STATE EVALUATION
+  // Faint state check
   ['p1', 'p2'].forEach(slot => {
-    const player = gameState[slot];
+    const player = window.gameState[slot];
     if (!player) return;
 
     if (player.willBeFaintedNextRound) {
@@ -826,7 +800,7 @@ function startRoundCountdown() {
     if (player.isFainted) {
       if (stunOverlay) stunOverlay.hidden = false;
       if (statusEl) statusEl.textContent = 'FAINTED';
-    } else if (slot === 'p2' && gameState.p2AlwaysIdle) {
+    } else if (slot === 'p2' && window.gameState.p2AlwaysIdle) {
       if (stunOverlay) stunOverlay.hidden = true;
       if (statusEl) statusEl.textContent = 'DUMMY (IDLE)';
     } else {
@@ -837,56 +811,56 @@ function startRoundCountdown() {
 
   updateHUD();
   setSideBoxesBlank(false);
-  if (typeof hideCenterScreen === 'function') hideCenterScreen();
+  if (typeof window.hideCenterScreen === 'function') window.hideCenterScreen();
 
-  if (typeof updateCharacterMedia === 'function') {
-    updateCharacterMedia('p1', 'IDLE');
-    updateCharacterMedia('p2', 'IDLE');
+  if (typeof window.updateCharacterMedia === 'function') {
+    window.updateCharacterMedia('p1', 'IDLE');
+    window.updateCharacterMedia('p2', 'IDLE');
   }
 
-  if (gameState.p1 && gameState.p1.isFainted) {
+  if (window.gameState.p1 && window.gameState.p1.isFainted) {
     confirmPlayerAction('DO_NOTHING', 'p1');
   }
-  if (gameState.p2 && gameState.p2.isFainted) {
+  if (window.gameState.p2 && window.gameState.p2.isFainted) {
     confirmPlayerAction('DO_NOTHING', 'p2');
   }
 
   const battleMsg = document.getElementById('battle-message');
   if (battleMsg) {
     battleMsg.hidden = false;
-    battleMsg.textContent = `ROUND ${gameState.roundCounter}: READY!`;
+    battleMsg.textContent = `ROUND ${window.gameState.roundCounter}: READY!`;
   }
 
   setTimeout(() => {
-    if (gameState.roundPhase === 'INPUT' && battleMsg) {
+    if (window.gameState.roundPhase === 'INPUT' && battleMsg) {
       battleMsg.hidden = true;
     }
   }, 1200);
 
-  if (gameState.timerInterval) clearInterval(gameState.timerInterval);
-  gameState.turnTimerSeconds = 8;
+  if (window.gameState.timerInterval) clearInterval(window.gameState.timerInterval);
+  window.gameState.turnTimerSeconds = 8;
 
   const timerEl = document.getElementById('turn-timer');
-  if (timerEl) timerEl.textContent = `TIME: ${gameState.turnTimerSeconds}s`;
+  if (timerEl) timerEl.textContent = `TIME: ${window.gameState.turnTimerSeconds}s`;
 
-  // REAL-TIME CPU CHARGE MONITOR & BUTTON TRIGGER SCHEDULER
+  // Real-Time CPU Charge Monitor Scheduler
   ['p1', 'p2'].forEach((slot, index) => {
-    const player = gameState[slot];
+    const player = window.gameState[slot];
     if (player && player.isCPU && !player.isFainted) {
-      if (slot === 'p2' && gameState.p2AlwaysIdle) return;
+      if (slot === 'p2' && window.gameState.p2AlwaysIdle) return;
 
       const startupStagger = Math.floor(Math.random() * 80) + (index * 40);
 
       setTimeout(() => {
-        if (gameState.roundPhase !== 'INPUT') return;
+        if (window.gameState.roundPhase !== 'INPUT') return;
 
         const oppSlot = slot === 'p1' ? 'p2' : 'p1';
         let decision = { moveKey: 'DO_NOTHING', targetChargePct: 100 };
 
-        if (typeof selectCPUMoveAndCharge === 'function') {
-          decision = selectCPUMoveAndCharge(player, gameState[oppSlot], slot);
+        if (typeof window.selectCPUMoveAndCharge === 'function') {
+          decision = window.selectCPUMoveAndCharge(player, window.gameState[oppSlot], slot);
         } else if (typeof getCPUMoveChoice === 'function') {
-          decision.moveKey = getCPUMoveChoice(player, gameState[oppSlot], slot);
+          decision.moveKey = getCPUMoveChoice(player, window.gameState[oppSlot], slot);
           decision.targetChargePct = 85;
         }
 
@@ -899,12 +873,12 @@ function startRoundCountdown() {
           startPlayerCharge(slot, dirKey, decision.targetChargePct);
 
           const monitorInterval = setInterval(() => {
-            if (gameState.roundPhase !== 'INPUT') {
+            if (window.gameState.roundPhase !== 'INPUT') {
               clearInterval(monitorInterval);
               return;
             }
 
-            const isAlreadyConfirmed = slot === 'p1' ? gameState.p1IsConfirmed : gameState.p2IsConfirmed;
+            const isAlreadyConfirmed = slot === 'p1' ? window.gameState.p1IsConfirmed : window.gameState.p2IsConfirmed;
 
             if (isAlreadyConfirmed) {
               clearInterval(monitorInterval);
@@ -930,18 +904,18 @@ function startRoundCountdown() {
     }
   });
 
-  // Countdown Timer Interval
-  gameState.timerInterval = setInterval(() => {
-    if (gameState.roundPhase !== 'INPUT') return;
+  // Countdown timer
+  window.gameState.timerInterval = setInterval(() => {
+    if (window.gameState.roundPhase !== 'INPUT') return;
 
-    gameState.turnTimerSeconds--;
-    if (timerEl) timerEl.textContent = `TIME: ${gameState.turnTimerSeconds}s`;
+    window.gameState.turnTimerSeconds--;
+    if (timerEl) timerEl.textContent = `TIME: ${window.gameState.turnTimerSeconds}s`;
 
-    if (gameState.turnTimerSeconds <= 0) {
-      clearInterval(gameState.timerInterval);
+    if (window.gameState.turnTimerSeconds <= 0) {
+      clearInterval(window.gameState.timerInterval);
 
-      if (!gameState.input || !gameState.input.isConfirmed) {
-        if (gameState.p1 && gameState.p1.isCPU) {
+      if (!window.gameState.input || !window.gameState.input.isConfirmed) {
+        if (window.gameState.p1 && window.gameState.p1.isCPU) {
           let mk = getCPUAggressiveFallback('p1');
           confirmPlayerAction(mk, 'p1');
         } else {
@@ -949,8 +923,8 @@ function startRoundCountdown() {
         }
       }
 
-      if (!gameState.p2IsConfirmed) {
-        if (gameState.p2 && gameState.p2.isCPU && !gameState.p2AlwaysIdle) {
+      if (!window.gameState.p2IsConfirmed) {
+        if (window.gameState.p2 && window.gameState.p2.isCPU && !window.gameState.p2AlwaysIdle) {
           let mk = getCPUAggressiveFallback('p2');
           confirmPlayerAction(mk, 'p2');
         } else {
@@ -1062,7 +1036,7 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
     }
 
     let instabilityMult = 1.0;
-    if (defender.airborneTicks > 0 && defender.airborneAppliedRound === gameState.roundCounter) {
+    if (defender.airborneTicks > 0 && defender.airborneAppliedRound === window.gameState.roundCounter) {
       let jumpChargeRatio = Math.min(1.0, Math.max(0.0, (defender.airborneChargePercent !== undefined ? defender.airborneChargePercent : 100) / 100));
       instabilityMult = 1.8 - (0.8 * jumpChargeRatio);
     }
@@ -1086,7 +1060,7 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
   }
 
   let isDOrS = atkMoveKey.startsWith('D') || atkMoveKey.startsWith('S');
-  let typhoonMultiplier = (isDOrS && attacker.activeBuffs && attacker.activeBuffs.some(b => b.id === 'typhoon' || b.id === 'typhoon_speed' || b.id === 'double_typhoon')) ? 1.25 : 1.0;
+  let typhoonMultiplier = (isDOrS && attacker.activeBuffs && attacker.activeBuffs.some(b => b.id === 'typhoon' || b.id === 'typhoon_speed' || b.id === 'double_typhoon' || b.id === 'charge_speed')) ? 1.25 : 1.0;
 
   let focusMultiplier = 1.0;
   if (attacker.activeBuffs) {
@@ -1111,52 +1085,52 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
 
 async function executeTurnResolutionPhase() {
   const rules = window.COMBAT_RULES || COMBAT_RULES;
-  gameState.roundPhase = 'RESOLUTION';
+  window.gameState.roundPhase = 'RESOLUTION';
 
-  const p1StartLp = gameState.p1.lp;
-  const p2StartLp = gameState.p2.lp;
-  const p1StartFaint = gameState.p1.faintMeter;
-  const p2StartFaint = gameState.p2.faintMeter;
+  const p1StartLp = window.gameState.p1.lp;
+  const p2StartLp = window.gameState.p2.lp;
+  const p1StartFaint = window.gameState.p1.faintMeter;
+  const p2StartFaint = window.gameState.p2.faintMeter;
 
   let p1MoveKey = null;
   let p2MoveKey = null;
 
-  if (gameState.p1.isCPU && gameState.p2.isCPU) {
+  if (window.gameState.p1.isCPU && window.gameState.p2.isCPU) {
     if (Math.random() < 0.5) {
-      p1MoveKey = getCPUMoveChoice(gameState.p1, gameState.p2, 'p1');
-      p2MoveKey = getCPUMoveChoice(gameState.p2, gameState.p1, 'p2');
+      p1MoveKey = getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1');
+      p2MoveKey = getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2');
     } else {
-      p2MoveKey = getCPUMoveChoice(gameState.p2, gameState.p1, 'p2');
-      p1MoveKey = getCPUMoveChoice(gameState.p1, gameState.p2, 'p1');
+      p2MoveKey = getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2');
+      p1MoveKey = getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1');
     }
 
-    gameState.p1SelectedMoveKey = p1MoveKey;
-    gameState.p2SelectedMoveKey = p2MoveKey;
+    window.gameState.p1SelectedMoveKey = p1MoveKey;
+    window.gameState.p2SelectedMoveKey = p2MoveKey;
   } else {
-    if (gameState.p1.isCPU) {
-      p1MoveKey = getCPUMoveChoice(gameState.p1, gameState.p2, 'p1');
+    if (window.gameState.p1.isCPU) {
+      p1MoveKey = getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1');
     } else {
-      p1MoveKey = gameState.input ? gameState.input.selectedMoveKey : null;
-      if (gameState.p1.activeChargePercent === undefined) {
-        gameState.p1.activeChargePercent = (gameState.input && typeof gameState.input.currentPercent === 'number' && gameState.input.currentPercent > 0) ? gameState.input.currentPercent : 100;
+      p1MoveKey = window.gameState.input ? window.gameState.input.selectedMoveKey : null;
+      if (window.gameState.p1.activeChargePercent === undefined) {
+        window.gameState.p1.activeChargePercent = (window.gameState.input && typeof window.gameState.input.currentPercent === 'number' && window.gameState.input.currentPercent > 0) ? window.gameState.input.currentPercent : 100;
       }
     }
 
-    p2MoveKey = gameState.p2AlwaysIdle ? 'DO_NOTHING' : gameState.p2SelectedMoveKey;
-    if (!p2MoveKey && gameState.p2.isCPU && !gameState.p2AlwaysIdle) {
-      p2MoveKey = getCPUMoveChoice(gameState.p2, gameState.p1, 'p2');
-    } else if (!gameState.p2.isCPU && gameState.p2.activeChargePercent === undefined) {
-      gameState.p2.activeChargePercent = typeof gameState.p2ChargePercent === 'number' ? gameState.p2ChargePercent : 100;
+    p2MoveKey = window.gameState.p2AlwaysIdle ? 'DO_NOTHING' : window.gameState.p2SelectedMoveKey;
+    if (!p2MoveKey && window.gameState.p2.isCPU && !window.gameState.p2AlwaysIdle) {
+      p2MoveKey = getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2');
+    } else if (!window.gameState.p2.isCPU && window.gameState.p2.activeChargePercent === undefined) {
+      window.gameState.p2.activeChargePercent = typeof window.gameState.p2ChargePercent === 'number' ? window.gameState.p2ChargePercent : 100;
     }
   }
 
   if (!p1MoveKey) p1MoveKey = 'DO_NOTHING';
   if (!p2MoveKey) p2MoveKey = 'DO_NOTHING';
 
-  if (gameState.p1.isCPU && p1MoveKey !== 'DO_NOTHING' && typeof simulateCPUButtonPress === 'function') {
+  if (window.gameState.p1.isCPU && p1MoveKey !== 'DO_NOTHING' && typeof simulateCPUButtonPress === 'function') {
     simulateCPUButtonPress(p1MoveKey, 'p1');
   }
-  if (gameState.p2.isCPU && !gameState.p2AlwaysIdle && p2MoveKey !== 'DO_NOTHING' && typeof simulateCPUButtonPress === 'function') {
+  if (window.gameState.p2.isCPU && !window.gameState.p2AlwaysIdle && p2MoveKey !== 'DO_NOTHING' && typeof simulateCPUButtonPress === 'function') {
     simulateCPUButtonPress(p2MoveKey, 'p2');
   }
 
@@ -1167,8 +1141,8 @@ async function executeTurnResolutionPhase() {
   const battleMsg = document.getElementById('battle-message');
   if (battleMsg) {
     battleMsg.hidden = false;
-    const p1Charge = gameState.p1.activeChargePercent !== undefined ? gameState.p1.activeChargePercent : 100;
-    const p2Charge = gameState.p2.activeChargePercent !== undefined ? gameState.p2.activeChargePercent : 100;
+    const p1Charge = window.gameState.p1.activeChargePercent !== undefined ? window.gameState.p1.activeChargePercent : 100;
+    const p2Charge = window.gameState.p2.activeChargePercent !== undefined ? window.gameState.p2.activeChargePercent : 100;
     battleMsg.innerHTML = `P1: ${p1Move.name} (${p1Charge}%) VS P2: ${p2Move.name} (${p2Charge}%)`;
   }
 
@@ -1199,8 +1173,8 @@ async function executeTurnResolutionPhase() {
   } else if (p1IsD && p2IsS) {
     p1GoesFirst = false;
   } else {
-    let p1Charge = gameState.p1.activeChargePercent !== undefined ? gameState.p1.activeChargePercent : 100;
-    let p2Charge = gameState.p2.activeChargePercent !== undefined ? gameState.p2.activeChargePercent : 100;
+    let p1Charge = window.gameState.p1.activeChargePercent !== undefined ? window.gameState.p1.activeChargePercent : 100;
+    let p2Charge = window.gameState.p2.activeChargePercent !== undefined ? window.gameState.p2.activeChargePercent : 100;
 
     let p1Elapsed = p1Charge * 0.025;
     let p2Elapsed = p2Charge * 0.025;
@@ -1214,15 +1188,15 @@ async function executeTurnResolutionPhase() {
     }
   }
 
-  let attacker1 = p1GoesFirst ? gameState.p1 : gameState.p2;
-  let defender1 = p1GoesFirst ? gameState.p2 : gameState.p1;
+  let attacker1 = p1GoesFirst ? window.gameState.p1 : window.gameState.p2;
+  let defender1 = p1GoesFirst ? window.gameState.p2 : window.gameState.p1;
   let move1 = p1GoesFirst ? p1Move : p2Move;
   let key1 = p1GoesFirst ? p1MoveKey : p2MoveKey;
   let atkKey1 = p1GoesFirst ? 'p1' : 'p2';
   let defKey1 = p1GoesFirst ? 'p2' : 'p1';
 
-  let attacker2 = p1GoesFirst ? gameState.p2 : gameState.p1;
-  let defender2 = p1GoesFirst ? gameState.p1 : gameState.p2;
+  let attacker2 = p1GoesFirst ? window.gameState.p2 : window.gameState.p1;
+  let defender2 = p1GoesFirst ? window.gameState.p1 : window.gameState.p2;
   let move2 = p1GoesFirst ? p2Move : p1Move;
   let key2 = p1GoesFirst ? p2MoveKey : p1MoveKey;
   let atkKey2 = p1GoesFirst ? 'p2' : 'p1';
@@ -1252,12 +1226,12 @@ async function executeTurnResolutionPhase() {
         await applyFaintBuildUp(attacker1, atkKey1, rules.FAINT_PENALTY_IDLE_GUARD);
       }
 
-      if (!isOpponentOffensive && typeof playCenterVideo === 'function') {
-        await playCenterVideo(atkKey1, move1.video || 'guard.mp4', move1.name, null, move1);
+      if (!isOpponentOffensive && typeof window.playCenterVideo === 'function') {
+        await window.playCenterVideo(atkKey1, move1.video || 'guard.mp4', move1.name, null, move1);
       }
     } else {
-      if (typeof playCenterVideo === 'function') {
-        await playCenterVideo(atkKey1, move1.video || 'idle.mp4', move1.name, null, move1);
+      if (typeof window.playCenterVideo === 'function') {
+        await window.playCenterVideo(atkKey1, move1.video || 'idle.mp4', move1.name, null, move1);
       }
 
       let result = resolveAttack(attacker1, defender1, move1, key1, move2, key2, defKey1);
@@ -1270,8 +1244,8 @@ async function executeTurnResolutionPhase() {
 
           if (result.guardSuccess) {
             const guardVid = move2.video || 'guard.mp4';
-            if (typeof playCenterVideo === 'function') {
-              await playCenterVideo(defKey1, guardVid, 'GUARDED!', null, move2);
+            if (typeof window.playCenterVideo === 'function') {
+              await window.playCenterVideo(defKey1, guardVid, 'GUARDED!', null, move2);
             }
 
             if (result.finalDmg === 0) {
@@ -1294,8 +1268,8 @@ async function executeTurnResolutionPhase() {
             defender1WasInterrupted = true;
 
             const hitVid = key1.startsWith('S') ? 'hit.mp4' : 'hit_physical.mp4';
-            if (typeof playCenterVideo === 'function') {
-              await playCenterVideo(defKey1, hitVid, 'TAKING DAMAGE');
+            if (typeof window.playCenterVideo === 'function') {
+              await window.playCenterVideo(defKey1, hitVid, 'TAKING DAMAGE');
             }
 
             defender1.lp = Math.max(0, defender1.lp - result.finalDmg);
@@ -1309,13 +1283,13 @@ async function executeTurnResolutionPhase() {
             await applyFaintBuildUp(defender1, defKey1, getFaintDamageForMove(move1));
           }
         } else if (!result.hitLanded) {
-          if (typeof playCenterVideo === 'function') {
-            await playCenterVideo(defKey1, 'dodge.mp4', 'DODGED!');
+          if (typeof window.playCenterVideo === 'function') {
+            await window.playCenterVideo(defKey1, 'dodge.mp4', 'DODGED!');
           }
           triggerFloatingText(defKey1, 'MISS!!', 'miss');
         } else if (result.isGlancing) {
-          if (typeof playCenterVideo === 'function') {
-            await playCenterVideo(defKey1, 'dodge.mp4', 'EVADED!');
+          if (typeof window.playCenterVideo === 'function') {
+            await window.playCenterVideo(defKey1, 'dodge.mp4', 'EVADED!');
           }
           defender1.lp = Math.max(0, defender1.lp - result.finalDmg);
 
@@ -1337,8 +1311,8 @@ async function executeTurnResolutionPhase() {
           defender1WasInterrupted = true;
 
           const hitVid = key1.startsWith('S') ? 'hit.mp4' : 'hit_physical.mp4';
-          if (typeof playCenterVideo === 'function') {
-            await playCenterVideo(defKey1, hitVid, 'TAKING DAMAGE');
+          if (typeof window.playCenterVideo === 'function') {
+            await window.playCenterVideo(defKey1, hitVid, 'TAKING DAMAGE');
           }
 
           defender1.lp = Math.max(0, defender1.lp - result.finalDmg);
@@ -1376,8 +1350,8 @@ async function executeTurnResolutionPhase() {
     attacker2.chi = Math.max(0, attacker2.chi - (move2.chiCost || 0));
     updateHUD();
 
-    if (typeof playCenterVideo === 'function') {
-      await playCenterVideo(atkKey2, move2.video || 'idle.mp4', move2.name, null, move2);
+    if (typeof window.playCenterVideo === 'function') {
+      await window.playCenterVideo(atkKey2, move2.video || 'idle.mp4', move2.name, null, move2);
     }
     let result = resolveAttack(attacker2, defender2, move2, key2, move1, key1, defKey2);
 
@@ -1385,8 +1359,8 @@ async function executeTurnResolutionPhase() {
       if (move1.type === 'DEFENSE' && !defender2.isFainted) {
         if (result.guardSuccess) {
           const guardVid = move1.video || 'guard.mp4';
-          if (typeof playCenterVideo === 'function') {
-            await playCenterVideo(defKey2, guardVid, 'GUARDED!', null, move1);
+          if (typeof window.playCenterVideo === 'function') {
+            await window.playCenterVideo(defKey2, guardVid, 'GUARDED!', null, move1);
           }
 
           if (result.finalDmg === 0) {
@@ -1407,8 +1381,8 @@ async function executeTurnResolutionPhase() {
           updateHUD();
         } else {
           const hitVid = key2.startsWith('S') ? 'hit.mp4' : 'hit_physical.mp4';
-          if (typeof playCenterVideo === 'function') {
-            await playCenterVideo(defKey2, hitVid, 'TAKING DAMAGE');
+          if (typeof window.playCenterVideo === 'function') {
+            await window.playCenterVideo(defKey2, hitVid, 'TAKING DAMAGE');
           }
 
           defender2.lp = Math.max(0, defender2.lp - result.finalDmg);
@@ -1422,13 +1396,13 @@ async function executeTurnResolutionPhase() {
           await applyFaintBuildUp(defender2, defKey2, getFaintDamageForMove(move2));
         }
       } else if (!result.hitLanded) {
-        if (typeof playCenterVideo === 'function') {
-          await playCenterVideo(defKey2, 'dodge.mp4', 'DODGED!');
+        if (typeof window.playCenterVideo === 'function') {
+          await window.playCenterVideo(defKey2, 'dodge.mp4', 'DODGED!');
         }
         triggerFloatingText(defKey2, 'MISS!!', 'miss');
       } else if (result.isGlancing) {
-        if (typeof playCenterVideo === 'function') {
-          await playCenterVideo(defKey2, 'dodge.mp4', 'EVADED!');
+        if (typeof window.playCenterVideo === 'function') {
+          await window.playCenterVideo(defKey2, 'dodge.mp4', 'EVADED!');
         }
         defender2.lp = Math.max(0, defender2.lp - result.finalDmg);
 
@@ -1448,8 +1422,8 @@ async function executeTurnResolutionPhase() {
         await applyFaintBuildUp(defender2, defKey2, 10);
       } else {
         const hitVid = key2.startsWith('S') ? 'hit.mp4' : 'hit_physical.mp4';
-        if (typeof playCenterVideo === 'function') {
-          await playCenterVideo(defKey2, hitVid, 'TAKING DAMAGE');
+        if (typeof window.playCenterVideo === 'function') {
+          await window.playCenterVideo(defKey2, hitVid, 'TAKING DAMAGE');
         }
 
         defender2.lp = Math.max(0, defender2.lp - result.finalDmg);
@@ -1482,51 +1456,51 @@ async function executeTurnResolutionPhase() {
     triggerFloatingText(atkKey2, 'INTERRUPTED!', 'scratch');
   }
 
-  // ROUND CONCLUSION
+  // Round conclusion
   setTimeout(() => {
-    if (typeof hideCenterScreen === 'function') hideCenterScreen();
+    if (typeof window.hideCenterScreen === 'function') window.hideCenterScreen();
     setSideBoxesBlank(false);
 
     if (battleMsg) battleMsg.hidden = true;
 
-    const p1DmgTaken = p1StartLp - gameState.p1.lp;
-    const p2DmgTaken = p2StartLp - gameState.p2.lp;
+    const p1DmgTaken = p1StartLp - window.gameState.p1.lp;
+    const p2DmgTaken = p2StartLp - window.gameState.p2.lp;
 
-    if (gameState.p2.isCPU && window.globalAIKnowledge && typeof window.calculateMoveSuccess === 'function') {
-      const wasSuccessful = window.calculateMoveSuccess(gameState.p2, gameState.p1, p2MoveKey, {
+    if (window.gameState.p2.isCPU && window.globalAIKnowledge && typeof window.calculateMoveSuccess === 'function') {
+      const wasSuccessful = window.calculateMoveSuccess(window.gameState.p2, window.gameState.p1, p2MoveKey, {
         damageDealt: p1DmgTaken,
         damageTaken: p2DmgTaken,
-        oppChargePercent: gameState.p1.activeChargePercent || 100,
+        oppChargePercent: window.gameState.p1.activeChargePercent || 100,
         cpuWasHit: p2DmgTaken > 0,
-        cpuWasInterrupted: defender1WasInterrupted && attacker2 === gameState.p1,
+        cpuWasInterrupted: defender1WasInterrupted && attacker2 === window.gameState.p1,
         oppWasGuarded: p1Move.type === 'DEFENSE',
         chiSpent: p2Move.chiCost || 0,
         oppAttemptedAttack: p1Move.type !== 'DEFENSE' && p1Move.type !== 'IDLE',
-        faintRecovered: Math.max(0, p2StartFaint - gameState.p2.faintMeter)
+        faintRecovered: Math.max(0, p2StartFaint - window.gameState.p2.faintMeter)
       });
-      window.globalAIKnowledge.recordTurnOutcome(gameState.p2, gameState.p1, p1MoveKey, p2MoveKey, wasSuccessful);
+      window.globalAIKnowledge.recordTurnOutcome(window.gameState.p2, window.gameState.p1, p1MoveKey, p2MoveKey, wasSuccessful);
     }
 
-    if (gameState.p1.isCPU && window.globalAIKnowledge && typeof window.calculateMoveSuccess === 'function') {
-      const wasSuccessful = window.calculateMoveSuccess(gameState.p1, gameState.p2, p1MoveKey, {
+    if (window.gameState.p1.isCPU && window.globalAIKnowledge && typeof window.calculateMoveSuccess === 'function') {
+      const wasSuccessful = window.calculateMoveSuccess(window.gameState.p1, window.gameState.p2, p1MoveKey, {
         damageDealt: p2DmgTaken,
         damageTaken: p1DmgTaken,
-        oppChargePercent: gameState.p2.activeChargePercent || 100,
+        oppChargePercent: window.gameState.p2.activeChargePercent || 100,
         cpuWasHit: p1DmgTaken > 0,
-        cpuWasInterrupted: defender1WasInterrupted && attacker2 === gameState.p2,
+        cpuWasInterrupted: defender1WasInterrupted && attacker2 === window.gameState.p2,
         oppWasGuarded: p2Move.type === 'DEFENSE',
         chiSpent: p1Move.chiCost || 0,
         oppAttemptedAttack: p2Move.type !== 'DEFENSE' && p2Move.type !== 'IDLE',
-        faintRecovered: Math.max(0, p1StartFaint - gameState.p1.faintMeter)
+        faintRecovered: Math.max(0, p1StartFaint - window.gameState.p1.faintMeter)
       });
-      window.globalAIKnowledge.recordTurnOutcome(gameState.p1, gameState.p2, p2MoveKey, p1MoveKey, wasSuccessful);
+      window.globalAIKnowledge.recordTurnOutcome(window.gameState.p1, window.gameState.p2, p2MoveKey, p1MoveKey, wasSuccessful);
     }
 
-    processRoundBuffs(gameState.p1);
-    processRoundBuffs(gameState.p2);
+    processRoundBuffs(window.gameState.p1);
+    processRoundBuffs(window.gameState.p2);
 
     ['p1', 'p2'].forEach(slot => {
-      const player = gameState[slot];
+      const player = window.gameState[slot];
       if (player) {
         if (!player.isFainted && !player.tookCleanHitThisRound && player.faintMeter > 0) {
           player.faintMeter = Math.max(0, player.faintMeter - rules.ROUND_RECOVERY);
@@ -1537,64 +1511,59 @@ async function executeTurnResolutionPhase() {
 
     updateHUD();
 
-    if (gameState.p1.lp > 0 && gameState.p2.lp > 0) {
-      gameState.roundCounter++;
+    if (window.gameState.p1.lp > 0 && window.gameState.p2.lp > 0) {
+      window.gameState.roundCounter++;
       resetRoundState();
 
       launchRoundTimer();
 
-      if (gameState.p1.isCPU && gameState.p2.isCPU) {
+      if (window.gameState.p1.isCPU && window.gameState.p2.isCPU) {
         setTimeout(() => {
-          if (gameState.roundPhase === 'INPUT') {
+          if (window.gameState.roundPhase === 'INPUT') {
             executeTurnResolutionPhase();
           }
         }, 1200);
       }
     } else {
-      gameState.roundPhase = 'GAME_OVER';
+      window.gameState.roundPhase = 'GAME_OVER';
       if (battleMsg) battleMsg.hidden = false;
 
-      if (typeof saveAIKnowledge === 'function') {
-        saveAIKnowledge();
-      }
-
-      if (typeof recordMatchStats === 'function') {
-        const winner = gameState.p1.lp > 0 ? gameState.p1 : (gameState.p2.lp > 0 ? gameState.p2 : null);
-        recordMatchStats({ winner });
+      if (typeof window.saveAIKnowledge === 'function') {
+        window.saveAIKnowledge();
       }
 
       ['p1', 'p2'].forEach(slot => {
         const stunOverlay = document.getElementById(`${slot}-stun-overlay`);
         if (stunOverlay) stunOverlay.hidden = true;
-        if (gameState[slot]) gameState[slot].isFainted = false;
+        if (window.gameState[slot]) window.gameState[slot].isFainted = false;
       });
 
       let resultText = "";
-      if (gameState.p1.lp <= 0 && gameState.p2.lp <= 0) {
+      if (window.gameState.p1.lp <= 0 && window.gameState.p2.lp <= 0) {
         resultText = "DOUBLE KO!<br>DRAW MATCH!";
-        if (typeof updateCharacterMedia === 'function') {
-          updateCharacterMedia('p1', 'KO');
-          updateCharacterMedia('p2', 'KO');
+        if (typeof window.updateCharacterMedia === 'function') {
+          window.updateCharacterMedia('p1', 'KO');
+          window.updateCharacterMedia('p2', 'KO');
         }
-      } else if (gameState.p1.lp <= 0) {
-        resultText = `KO!<br>P2 ${gameState.p2.name.toUpperCase()} WINS!`;
-        if (typeof updateCharacterMedia === 'function') {
-          updateCharacterMedia('p1', 'KO');
-          updateCharacterMedia('p2', 'VICTORY');
+      } else if (window.gameState.p1.lp <= 0) {
+        resultText = `KO!<br>P2 ${window.gameState.p2.name.toUpperCase()} WINS!`;
+        if (typeof window.updateCharacterMedia === 'function') {
+          window.updateCharacterMedia('p1', 'KO');
+          window.updateCharacterMedia('p2', 'VICTORY');
         }
       } else {
-        resultText = `KO!<br>P1 ${gameState.p1.name.toUpperCase()} WINS!`;
-        if (typeof updateCharacterMedia === 'function') {
-          updateCharacterMedia('p1', 'VICTORY');
-          updateCharacterMedia('p2', 'KO');
+        resultText = `KO!<br>P1 ${window.gameState.p1.name.toUpperCase()} WINS!`;
+        if (typeof window.updateCharacterMedia === 'function') {
+          window.updateCharacterMedia('p1', 'VICTORY');
+          window.updateCharacterMedia('p2', 'KO');
         }
       }
 
       battleMsg.innerHTML = `${resultText}<br><span class="continue-prompt">PRESS ANY KEY TO CONTINUE</span>`;
 
-      gameState.canContinueFromGameOver = false;
+      window.gameState.canContinueFromGameOver = false;
       setTimeout(() => {
-        gameState.canContinueFromGameOver = true;
+        window.gameState.canContinueFromGameOver = true;
       }, 1000);
     }
   }, 1000);
@@ -1602,8 +1571,8 @@ async function executeTurnResolutionPhase() {
 
 function startBattle(matchConfig) {
   if (!window.gameState) window.gameState = {};
-  gameState.matchConfig = matchConfig || {};
-  if (!gameState.videoCache) gameState.videoCache = {};
+  window.gameState.matchConfig = matchConfig || {};
+  if (!window.gameState.videoCache) window.gameState.videoCache = {};
 
   resetRoundState();
 
@@ -1618,21 +1587,21 @@ function startBattle(matchConfig) {
       const p2Id = matchConfig.p2Rider?.id || 'nigo';
 
       const fallback = typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
-      gameState.p1Moves = fallback;
-      gameState.p2Moves = fallback;
+      window.gameState.p1Moves = fallback;
+      window.gameState.p2Moves = fallback;
 
       fetch('data/moves.json')
         .then(res => res.ok ? res.json() : null)
         .then(allMoves => {
           if (allMoves) {
-            gameState.p1Moves = allMoves[p1Id] || fallback;
-            gameState.p2Moves = allMoves[p2Id] || fallback;
+            window.gameState.p1Moves = allMoves[p1Id] || fallback;
+            window.gameState.p2Moves = allMoves[p2Id] || fallback;
           }
         })
         .catch(() => {});
     } catch (e) {
-      gameState.p1Moves = typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
-      gameState.p2Moves = typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
+      window.gameState.p1Moves = typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
+      window.gameState.p2Moves = typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
     }
 
     const p1Rider = matchConfig.p1Rider || { id: 'ichigo', name: 'Kamen Rider Ichigo', maxLp: 1850, sourceFacing: 'left' };
@@ -1647,7 +1616,7 @@ function startBattle(matchConfig) {
     let p2MaxLp = p2Rider.maxLp || 2000;
     if (matchConfig.p2IsCPU && matchConfig.p2Difficulty === 'hard') p2MaxLp = Math.floor(p2MaxLp * hpMultiplier);
 
-    gameState.p1 = {
+    window.gameState.p1 = {
       id: p1Rider.id || 'ichigo',
       name: p1Rider.name || 'Kamen Rider Ichigo',
       sourceFacing: p1Rider.sourceFacing || 'left',
@@ -1667,7 +1636,7 @@ function startBattle(matchConfig) {
       tookCleanHitThisRound: false
     };
 
-    gameState.p2 = {
+    window.gameState.p2 = {
       id: p2Rider.id || 'nigo',
       name: p2Rider.name || 'Kamen Rider Nigo',
       sourceFacing: p2Rider.sourceFacing || 'right',
@@ -1687,16 +1656,16 @@ function startBattle(matchConfig) {
       tookCleanHitThisRound: false
     };
 
-    gameState.roundCounter = 1;
+    window.gameState.roundCounter = 1;
 
-    if (splashNames) splashNames.textContent = `${gameState.p1.name.toUpperCase()} VS ${gameState.p2.name.toUpperCase()}`;
+    if (splashNames) splashNames.textContent = `${window.gameState.p1.name.toUpperCase()} VS ${window.gameState.p2.name.toUpperCase()}`;
     if (splashRound) splashRound.textContent = "PRELOADING ASSETS...";
     if (transitionScreen) transitionScreen.hidden = false;
 
-    if (typeof preloadRiderVideos === 'function') {
+    if (typeof window.preloadRiderVideos === 'function') {
       try {
-        preloadRiderVideos(p1Rider.id, gameState.p1Moves);
-        preloadRiderVideos(p2Rider.id, gameState.p2Moves);
+        window.preloadRiderVideos(p1Rider.id, window.gameState.p1Moves);
+        window.preloadRiderVideos(p2Rider.id, window.gameState.p2Moves);
       } catch (err) {
         console.warn("Video preload skipped:", err);
       }
@@ -1712,17 +1681,17 @@ function startBattle(matchConfig) {
 
     updateHUD();
 
-    if (typeof updateCharacterMedia === 'function') {
-      updateCharacterMedia('p1', 'IDLE');
-      updateCharacterMedia('p2', 'IDLE');
+    if (typeof window.updateCharacterMedia === 'function') {
+      window.updateCharacterMedia('p1', 'IDLE');
+      window.updateCharacterMedia('p2', 'IDLE');
     }
 
     updateControlPanelsVisibility();
     launchRoundTimer();
 
-    if (gameState.p1.isCPU && gameState.p2.isCPU) {
+    if (window.gameState.p1.isCPU && window.gameState.p2.isCPU) {
       setTimeout(() => {
-        if (gameState.roundPhase === 'INPUT') {
+        if (window.gameState.roundPhase === 'INPUT') {
           executeTurnResolutionPhase();
         }
       }, 1200);
@@ -1731,11 +1700,11 @@ function startBattle(matchConfig) {
 }
 
 function returnToSelectScreen() {
-  gameState.roundPhase = 'IDLE';
-  gameState.canContinueFromGameOver = false;
+  window.gameState.roundPhase = 'IDLE';
+  window.gameState.canContinueFromGameOver = false;
 
-  if (typeof stopBattleBGM === 'function') stopBattleBGM();
-  if (typeof playSelectionBGM === 'function') playSelectionBGM();
+  if (typeof window.stopBattleBGM === 'function') window.stopBattleBGM();
+  if (typeof window.playSelectionBGM === 'function') window.playSelectionBGM();
 
   const battleScreen = document.getElementById('battle-screen');
   const selectScreen = document.getElementById('vs-select-screen');
@@ -1747,8 +1716,8 @@ function returnToSelectScreen() {
 
   if (window.vsSelectionState) {
     window.vsSelectionState.step = 1;
-    if (typeof updateSelectionUI === 'function') {
-      updateSelectionUI();
+    if (typeof window.updateSelectionUI === 'function') {
+      window.updateSelectionUI();
     }
   }
 
@@ -1763,60 +1732,57 @@ function handleGameOverInput(e) {
   }
 }
 
-/* ==========================================================================
-   DUAL PLAYER INPUT BINDINGS (P1 & P2 HUMAN SUPPORT)
-   ========================================================================== */
-
+/* Event Binds */
 function bindKeyboardInputs() {
   window.addEventListener('keydown', (e) => {
-    if (typeof unlockMobileVideos === 'function') unlockMobileVideos();
+    if (typeof window.unlockMobileVideos === 'function') window.unlockMobileVideos();
 
-    if (gameState.roundPhase === 'GAME_OVER' && gameState.canContinueFromGameOver) {
+    if (window.gameState.roundPhase === 'GAME_OVER' && window.gameState.canContinueFromGameOver) {
       returnToSelectScreen();
       return;
     }
 
-    if (gameState.roundPhase !== 'INPUT') return;
+    if (window.gameState.roundPhase !== 'INPUT') return;
 
     const key = e.key ? e.key : '';
     const upperKey = key.toUpperCase();
     const code = e.code;
 
     if (e.key === '0') {
-      gameState.p2AlwaysIdle = !gameState.p2AlwaysIdle;
+      window.gameState.p2AlwaysIdle = !window.gameState.p2AlwaysIdle;
       const statusEl = document.getElementById('p2-status');
       if (statusEl) {
-        statusEl.textContent = gameState.p2AlwaysIdle ? 'DUMMY (IDLE)' : (gameState.p2 && gameState.p2.isFainted ? 'FAINTED' : 'NORMAL');
+        statusEl.textContent = window.gameState.p2AlwaysIdle ? 'DUMMY (IDLE)' : (window.gameState.p2 && window.gameState.p2.isFainted ? 'FAINTED' : 'NORMAL');
       }
       return;
     }
 
-    // --- P1 HUMAN INPUT (WASD + JKLI) ---
-    if (gameState.p1 && !gameState.p1.isCPU && !gameState.p1.isFainted && !(gameState.input && gameState.input.isConfirmed)) {
+    // P1 Keyboard Mapping
+    if (window.gameState.p1 && !window.gameState.p1.isCPU && !window.gameState.p1.isFainted && !window.gameState.p1IsConfirmed) {
       if (['A', 'D', 'W', 'S'].includes(upperKey)) {
-        if (!gameState.p1.chargeState || gameState.p1.chargeState.heldDir !== upperKey) {
+        if (!window.gameState.p1.chargeState || window.gameState.p1.chargeState.heldDir !== upperKey) {
           startPlayerCharge('p1', upperKey, 100);
         }
       }
 
       if (['J', 'K', 'L', 'I'].includes(upperKey)) {
-        if (!gameState.p1.chargeState || !gameState.p1.chargeState.heldDir) {
+        if (!window.gameState.p1.chargeState || !window.gameState.p1.chargeState.heldDir) {
           triggerFloatingText('p1', 'TAP DIRECTION FIRST!', 'scratch');
           return;
         }
-        confirmPlayerAction(`${gameState.p1.chargeState.heldDir}+${upperKey}`, 'p1');
+        confirmPlayerAction(`${window.gameState.p1.chargeState.heldDir}+${upperKey}`, 'p1');
       }
     }
 
-    // --- P2 HUMAN INPUT (ARROWS + NUMPAD / U,I,O,P) ---
-    if (gameState.p2 && !gameState.p2.isCPU && !gameState.p2.isFainted && !gameState.p2IsConfirmed) {
+    // P2 Keyboard Mapping
+    if (window.gameState.p2 && !window.gameState.p2.isCPU && !window.gameState.p2.isFainted && !window.gameState.p2IsConfirmed) {
       let p2Dir = null;
       if (key === 'ArrowUp') p2Dir = 'W';
       if (key === 'ArrowLeft') p2Dir = 'A';
       if (key === 'ArrowDown') p2Dir = 'S';
       if (key === 'ArrowRight') p2Dir = 'D';
 
-      if (p2Dir && (!gameState.p2.chargeState || gameState.p2.chargeState.heldDir !== p2Dir)) {
+      if (p2Dir && (!window.gameState.p2.chargeState || window.gameState.p2.chargeState.heldDir !== p2Dir)) {
         startPlayerCharge('p2', p2Dir, 100);
       }
 
@@ -1827,11 +1793,11 @@ function bindKeyboardInputs() {
       if (key === '5' || code === 'Numpad5' || key.toLowerCase() === 'p') p2Act = 'I';
 
       if (p2Act) {
-        if (!gameState.p2.chargeState || !gameState.p2.chargeState.heldDir) {
+        if (!window.gameState.p2.chargeState || !window.gameState.p2.chargeState.heldDir) {
           triggerFloatingText('p2', 'TAP DIRECTION FIRST!', 'scratch');
           return;
         }
-        confirmPlayerAction(`${gameState.p2.chargeState.heldDir}+${p2Act}`, 'p2');
+        confirmPlayerAction(`${window.gameState.p2.chargeState.heldDir}+${p2Act}`, 'p2');
       }
     }
   });
@@ -1844,7 +1810,7 @@ function bindCommandButtons() {
 
     const handlePressDown = (e) => {
       e.preventDefault();
-      if (typeof unlockMobileVideos === 'function') unlockMobileVideos();
+      if (typeof window.unlockMobileVideos === 'function') window.unlockMobileVideos();
 
       btn.classList.add('active');
       setTimeout(() => btn.classList.remove('active'), 200);
@@ -1863,7 +1829,7 @@ function bindCommandButtons() {
 }
 
 function handleP2TouchAction(btnId) {
-  if (!gameState.p2 || gameState.p2.isCPU || gameState.p2IsConfirmed || gameState.roundPhase !== 'INPUT') return;
+  if (!window.gameState.p2 || window.gameState.p2.isCPU || window.gameState.p2IsConfirmed || window.gameState.roundPhase !== 'INPUT') return;
 
   const action = btnId.replace('p2-key-', '');
 
@@ -1884,11 +1850,11 @@ function handleP2TouchAction(btnId) {
     if (action === '3') act = 'L';
     if (action === '5') act = 'I';
 
-    if (!gameState.p2.chargeState || !gameState.p2.chargeState.heldDir) {
+    if (!window.gameState.p2.chargeState || !window.gameState.p2.chargeState.heldDir) {
       triggerFloatingText('p2', 'TAP DIRECTION FIRST!', 'scratch');
       return;
     }
-    confirmPlayerAction(`${gameState.p2.chargeState.heldDir}+${act}`, 'p2');
+    confirmPlayerAction(`${window.gameState.p2.chargeState.heldDir}+${act}`, 'p2');
   }
 }
 
