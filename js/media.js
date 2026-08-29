@@ -1,10 +1,11 @@
 /**
- * media.js - Video & Animation Controller
+ * Media, Video & Animation Controller
+ * Path: js/media.js
  */
 
-// IOS MOBILE VIDEO UNLOCKER
 let mobileVideosUnlocked = false;
 
+// iOS & Mobile Autoplay Constraints Unlocker
 function unlockMobileVideos() {
   if (mobileVideosUnlocked) return;
 
@@ -26,35 +27,21 @@ function unlockMobileVideos() {
   mobileVideosUnlocked = true;
 }
 
-/**
- * ORIENTATION RESOLVER
- * Rules:
- * - P1 is on the LEFT side of screen, must face RIGHT.
- * - P2 is on the RIGHT side of screen, must face LEFT.
- */
+// Orientation Resolver (P1 faces Right, P2 faces Left)
 function getTransformFlip(player, playerKey, moveObj = null) {
   if (!player) return 'scaleX(1)';
 
-  // Priority: 1. Move-level sourceFacing -> 2. Rider-level sourceFacing -> 3. Default 'right'
   const nativeFacing = (moveObj && moveObj.sourceFacing) 
     ? moveObj.sourceFacing 
-    : ((player && player.sourceFacing) ? player.sourceFacing : 'right');
+    : (player.sourceFacing || (player.id === 'nigo' ? 'right' : 'left'));
 
   let shouldFlip = false;
-
   if (nativeFacing === 'left') {
-    // Native video faces LEFT (Ichigo defaults)
-    // P1 slot must face RIGHT -> FLIP!
-    // P2 slot must face LEFT  -> NO FLIP
     shouldFlip = (playerKey === 'p1');
   } else {
-    // Native video faces RIGHT (Nigo, V3, Riderman, + Ichigo's punch/combo_kick/kirimomi_kick)
-    // P1 slot must face RIGHT -> NO FLIP
-    // P2 slot must face LEFT  -> FLIP!
     shouldFlip = (playerKey === 'p2');
   }
 
-  // Legacy manual unmirrored override fallback (if unmirrored: true is set)
   if (moveObj && moveObj.unmirrored) {
     shouldFlip = !shouldFlip;
   }
@@ -62,7 +49,7 @@ function getTransformFlip(player, playerKey, moveObj = null) {
   return shouldFlip ? 'scaleX(-1)' : 'scaleX(1)';
 }
 
-// SAFE NON-BLOCKING PRELOADER
+// Safe Non-Blocking Video Asset Preloader
 async function preloadRiderVideos(riderId, riderMoves = {}) {
   if (!riderId) return;
 
@@ -82,23 +69,25 @@ async function preloadRiderVideos(riderId, riderMoves = {}) {
 
   videoFiles.forEach(file => {
     const rawUrl = `assets/videos/${riderId}/${file}`;
-    gameState.videoCache[rawUrl] = rawUrl;
+    window.gameState.videoCache[rawUrl] = rawUrl;
   });
 }
 
+// Action Cutscene Video Player (Center Box)
 function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = null, moveObj = null) {
   return new Promise((resolve) => {
     unlockMobileVideos();
 
-    const centerBox = document.getElementById('center-box');
+    const centerBox = document.getElementById('center-box') || document.getElementById('center-screen');
     const centerVid = document.getElementById('center-video');
-    const actionLabel = document.getElementById('center-action-label');
+    const actionLabel = document.getElementById('center-action-label') || document.getElementById('center-video-label');
+    
     if (!centerBox || !centerVid) {
       resolve();
       return;
     }
 
-    const player = gameState ? gameState[playerKey] : null;
+    const player = window.gameState ? window.gameState[playerKey] : null;
     if (!player) {
       resolve();
       return;
@@ -110,8 +99,7 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
       actionLabel.hidden = !actionName;
     }
 
-    // FIXED: Compare p1.id to p2.id
-    const isMirrorMatch = gameState.p1 && gameState.p2 && (gameState.p1.id === gameState.p2.id);
+    const isMirrorMatch = window.gameState.p1 && window.gameState.p2 && (window.gameState.p1.id === window.gameState.p2.id);
 
     centerBox.hidden = false;
     centerVid.muted = true;
@@ -155,7 +143,7 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
 
     const riderId = player.id || 'ichigo';
     const rawUrl = `assets/videos/${riderId}/${videoFile}`;
-    const videoUrl = (gameState.videoCache && gameState.videoCache[rawUrl]) || rawUrl;
+    const videoUrl = (window.gameState.videoCache && window.gameState.videoCache[rawUrl]) || rawUrl;
 
     centerVid.src = videoUrl;
     centerVid.load();
@@ -167,19 +155,25 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
       });
     }
 
-    const initialTimeout = (maxDurationMs && maxDurationMs > 8000) ? maxDurationMs : 8000;
+    const initialTimeout = (maxDurationMs && maxDurationMs > 2500) ? maxDurationMs : 2500;
     fallbackTimer = setTimeout(cleanUpAndResolve, initialTimeout);
   });
 }
 
 function hideCenterScreen() {
-  const centerBox = document.getElementById('center-box');
+  const centerBox = document.getElementById('center-box') || document.getElementById('center-screen');
+  const centerVid = document.getElementById('center-video');
+  if (centerVid) {
+    centerVid.pause();
+    centerVid.removeAttribute('src');
+  }
   if (centerBox) centerBox.hidden = true;
 }
 
+// Side Character Media Updater (Idle, Mid-Air, Faint, Victory, KO)
 function updateCharacterMedia(playerKey, stateType) {
-  if (!gameState) return;
-  const player = gameState[playerKey];
+  if (!window.gameState) return;
+  const player = window.gameState[playerKey];
   if (!player) return;
 
   const videoEl = document.getElementById(`${playerKey}-video`);
@@ -206,13 +200,12 @@ function updateCharacterMedia(playerKey, stateType) {
     fileName += '.mp4';
   }
 
-  const moves = playerKey === 'p1' ? gameState.p1Moves : gameState.p2Moves;
+  const moves = playerKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
   const currentMove = moves ? Object.values(moves).find(m => m && m.video === fileName) : null;
 
   videoEl.style.transform = getTransformFlip(player, playerKey, currentMove);
 
-  // FIXED: Compare p1.id to p2.id
-  const isMirrorMatch = gameState.p1 && gameState.p2 && (gameState.p1.id === gameState.p2.id);
+  const isMirrorMatch = window.gameState.p1 && window.gameState.p2 && (window.gameState.p1.id === window.gameState.p2.id);
 
   videoEl.muted = true;
   videoEl.playsInline = true;
@@ -226,7 +219,7 @@ function updateCharacterMedia(playerKey, stateType) {
 
   const riderId = player.id || 'ichigo';
   const rawUrl = `assets/videos/${riderId}/${fileName}`;
-  const videoUrl = (gameState.videoCache && gameState.videoCache[rawUrl]) || rawUrl;
+  const videoUrl = (window.gameState.videoCache && window.gameState.videoCache[rawUrl]) || rawUrl;
 
   if (videoEl.dataset.currentFile !== videoUrl) {
     videoEl.dataset.currentFile = videoUrl;
@@ -243,3 +236,10 @@ function updateCharacterMedia(playerKey, stateType) {
   if (spriteEl) spriteEl.hidden = true;
   videoEl.hidden = false;
 }
+
+window.unlockMobileVideos = unlockMobileVideos;
+window.getTransformFlip = getTransformFlip;
+window.preloadRiderVideos = preloadRiderVideos;
+window.playCenterVideo = playCenterVideo;
+window.hideCenterScreen = hideCenterScreen;
+window.updateCharacterMedia = updateCharacterMedia;
