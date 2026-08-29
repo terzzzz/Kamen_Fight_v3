@@ -1,5 +1,5 @@
 /**
- * Combat Engine & Turn Resolution Manager
+ * Combat Engine, Real-Time Dual Charge Manager & 2-Player Local Controller
  * Path: js/combat.js
  */
 
@@ -85,9 +85,134 @@ if (!window.gameState) {
       selectedMoveKey: null,
       lockInTime: 0,
       chargeInterval: null
+    },
+    p2Input: {
+      heldDirection: null
     }
   };
 }
+
+/* ==========================================================================
+   REAL-TIME DYNAMIC CHARGE BAR MANAGER (P1 & P2)
+   ========================================================================== */
+
+function startPlayerCharge(slotKey, dirKey, targetPercent = 100) {
+  const player = gameState[slotKey];
+  if (!player || player.isFainted || gameState.roundPhase !== 'INPUT') return;
+
+  if (!player.chargeState) {
+    player.chargeState = { interval: null, heldDir: null, startTime: 0, currentPercent: 0 };
+  }
+
+  if (player.chargeState.interval) clearInterval(player.chargeState.interval);
+
+  player.chargeState.heldDir = dirKey;
+  player.chargeState.startTime = Date.now();
+  player.chargeState.currentPercent = 0;
+
+  let baseDuration = (window.CHARGE_TIMES && window.CHARGE_TIMES[dirKey]) || 2000;
+
+  if (player.activeBuffs && player.activeBuffs.some(b => b.type === 'speed')) {
+    baseDuration *= 0.75;
+  }
+  if (player.activeBuffs && player.activeBuffs.some(b => b.id === 'rope_bind')) {
+    baseDuration *= 1.30;
+  }
+
+  const fillEl = document.getElementById(`${slotKey}-charge-fill`);
+  const textEl = document.getElementById(`${slotKey}-charge-text`);
+
+  if (fillEl) fillEl.classList.remove('locked');
+
+  player.chargeState.interval = setInterval(() => {
+    if (gameState.roundPhase !== 'INPUT') {
+      clearInterval(player.chargeState.interval);
+      return;
+    }
+
+    const elapsed = Date.now() - player.chargeState.startTime;
+    let pct = Math.min(targetPercent, Math.floor((elapsed / baseDuration) * 100));
+
+    player.chargeState.currentPercent = pct;
+    player.activeChargePercent = pct;
+
+    if (fillEl) fillEl.style.width = `${pct}%`;
+    if (textEl) textEl.textContent = `CHARGING [${dirKey}] ${pct}%`;
+
+    if (pct >= targetPercent) {
+      clearInterval(player.chargeState.interval);
+    }
+  }, 30);
+}
+
+function freezePlayerChargeBar(slotKey, moveKey) {
+  const player = gameState[slotKey];
+  if (player && player.chargeState && player.chargeState.interval) {
+    clearInterval(player.chargeState.interval);
+  }
+
+  const fillEl = document.getElementById(`${slotKey}-charge-fill`);
+  const textEl = document.getElementById(`${slotKey}-charge-text`);
+
+  const lockedPct = (player && player.activeChargePercent !== undefined) ? player.activeChargePercent : 100;
+
+  if (fillEl) {
+    fillEl.style.width = `${lockedPct}%`;
+    fillEl.classList.add('locked');
+  }
+
+  if (textEl) {
+    const moveName = moveKey === 'DO_NOTHING' ? 'IDLE' : moveKey;
+    textEl.textContent = `LOCKED: ${moveName} (${lockedPct}%)`;
+  }
+}
+
+function resetPlayerChargeBars() {
+  ['p1', 'p2'].forEach(slot => {
+    const player = gameState[slot];
+    if (player && player.chargeState && player.chargeState.interval) {
+      clearInterval(player.chargeState.interval);
+    }
+
+    const fillEl = document.getElementById(`${slot}-charge-fill`);
+    const textEl = document.getElementById(`${slot}-charge-text`);
+
+    if (fillEl) {
+      fillEl.style.width = '0%';
+      fillEl.classList.remove('locked');
+    }
+    if (textEl) textEl.textContent = 'READY';
+  });
+}
+
+function updateControlPanelsVisibility() {
+  const dualPanel = document.querySelector('.dual-controls-panel');
+  const p1Panel = document.getElementById('p1-controls') || document.getElementById('human-control-panel');
+  const p2Panel = document.getElementById('p2-controls');
+
+  const p1IsHuman = gameState.p1 && !gameState.p1.isCPU;
+  const p2IsHuman = gameState.p2 && !gameState.p2.isCPU;
+
+  if (p1IsHuman && p2IsHuman) {
+    if (dualPanel) dualPanel.style.display = 'flex';
+    if (p1Panel) p1Panel.style.display = 'flex';
+    if (p2Panel) p2Panel.style.display = 'flex';
+  } else {
+    if (dualPanel) dualPanel.style.display = 'none';
+    if (p1Panel) {
+      p1Panel.hidden = !p1IsHuman;
+      p1Panel.style.display = p1IsHuman ? 'flex' : 'none';
+    }
+    if (p2Panel) {
+      p2Panel.hidden = !p2IsHuman;
+      p2Panel.style.display = p2IsHuman ? 'flex' : 'none';
+    }
+  }
+}
+
+/* ==========================================================================
+   COMBAT HELPERS & GAME LOGIC
+   ========================================================================== */
 
 function getAttackerChiGainOnHit(atkMove, atkMoveKey) {
   if (!atkMove || !atkMoveKey) return 0;
@@ -380,6 +505,8 @@ function resetRoundState() {
     gameState.input.chargeInterval = null;
   }
 
+  gameState.p2Input = { heldDirection: null };
+
   gameState.p1SelectedMoveKey = null;
   gameState.p2SelectedMoveKey = null;
   gameState.p1IsConfirmed = false;
@@ -393,22 +520,18 @@ function resetRoundState() {
 }
 
 function resetCharge() {
+  resetPlayerChargeBars();
   if (gameState && gameState.input) {
     if (gameState.input.chargeInterval) clearInterval(gameState.input.chargeInterval);
     gameState.input.heldDirection = null;
     gameState.input.currentPercent = 0;
   }
+  if (gameState) gameState.p2Input = { heldDirection: null };
 
   ['W', 'A', 'S', 'D'].forEach(dir => {
     const keyEl = document.getElementById(`key-${dir}`);
     if (keyEl) keyEl.classList.remove('active');
   });
-
-  const fillEl = document.getElementById('p1-charge-fill') || document.getElementById('charge-fill') || document.querySelector('.charge-fill');
-  if (fillEl) {
-    fillEl.style.width = '0%';
-    fillEl.textContent = '0%';
-  }
 
   const statusEl = document.getElementById('charge-status-display') || document.getElementById('charge-status');
   if (statusEl) {
@@ -419,13 +542,13 @@ function resetCharge() {
 
 function resetTurnInputState() {
   resetCharge();
-  if (!gameState.input) {
-    gameState.input = {};
-  }
+  if (!gameState.input) gameState.input = {};
   gameState.input.acceptingInputs = false;
   gameState.input.isConfirmed = false;
   gameState.input.selectedMoveKey = null;
   gameState.input.lockInTime = 0;
+
+  gameState.p2Input = { heldDirection: null };
   gameState.p1IsConfirmed = false;
   gameState.p2IsConfirmed = false;
   gameState.p1SelectedMoveKey = null;
@@ -507,10 +630,6 @@ function getCPUMoveChoice(cpuPlayer, opponentPlayer, playerKey = 'p2') {
     chosenKey = getCPUAggressiveFallback(playerKey);
   }
 
-  if (cpuPlayer.activeChargePercent === undefined) {
-    cpuPlayer.activeChargePercent = 100;
-  }
-
   return chosenKey;
 }
 
@@ -534,15 +653,6 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
     }
 
     triggerFloatingText(playerKey, 'NO GUARD UNTIL OPPONENT ACTS!', 'scratch');
-
-    const statusEl = playerKey === 'p1' 
-      ? (document.getElementById('charge-status-display') || document.getElementById('charge-status'))
-      : document.getElementById('p2-charge-status-display');
-
-    if (statusEl) {
-      statusEl.textContent = 'CANNOT GUARD UNTIL OPPONENT SELECTS AN ACTION!';
-      statusEl.style.color = '#ff0055';
-    }
     if (playerKey === 'p1') resetCharge();
     return false;
   }
@@ -556,15 +666,6 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
       }
 
       triggerFloatingText(playerKey, 'NOT ENOUGH CHI!', 'miss');
-
-      const statusEl = playerKey === 'p1' 
-        ? (document.getElementById('charge-status-display') || document.getElementById('charge-status'))
-        : document.getElementById('p2-charge-status-display');
-
-      if (statusEl) {
-        statusEl.textContent = `NOT ENOUGH CHI FOR ${move.name.toUpperCase()}! (NEEDS ${chiCost} CHI)`;
-        statusEl.style.color = '#ff0055';
-      }
       return false;
     }
   }
@@ -579,29 +680,32 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
     gameState.p1IsConfirmed = true;
     gameState.p1SelectedMoveKey = moveKey;
     newlyConfirmed = true;
-    
-    if (gameState.p1.isCPU) {
-      gameState.p1.activeChargePercent = gameState.p1.activeChargePercent !== undefined ? gameState.p1.activeChargePercent : 100;
-    } else {
+
+    if (!gameState.p1.isCPU) {
       const currentCharge = (typeof gameState.input.currentPercent === 'number' && gameState.input.currentPercent > 0)
         ? gameState.input.currentPercent 
         : 100;
+      gameState.p1.activeChargePercent = moveKey === 'DO_NOTHING' ? 100 : currentCharge;
+    }
 
-      const lockedPercent = moveKey === 'DO_NOTHING' ? 100 : currentCharge;
-      gameState.p1.activeChargePercent = lockedPercent;
-      if (gameState.input.chargeInterval) clearInterval(gameState.input.chargeInterval);
+    freezePlayerChargeBar('p1', moveKey);
 
-      const flagEl = document.getElementById('p1-action-flag');
-      if (flagEl) {
-        flagEl.hidden = false;
-        flagEl.textContent = moveKey === 'DO_NOTHING' ? 'DO NOTHING' : `LOCKED ${lockedPercent}%!`;
-      }
+    const flagEl = document.getElementById('p1-action-flag');
+    if (flagEl) {
+      flagEl.hidden = false;
+      flagEl.textContent = moveKey === 'DO_NOTHING' ? 'DO NOTHING' : `LOCKED ${gameState.p1.activeChargePercent || 100}%!`;
     }
   } else if (playerKey === 'p2' && !gameState.p2IsConfirmed) {
     gameState.p2IsConfirmed = true;
     gameState.p2SelectedMoveKey = moveKey;
     gameState.p2LockInTime = gameState.turnTimerSeconds;
     newlyConfirmed = true;
+
+    if (!gameState.p2.isCPU && gameState.p2.activeChargePercent === undefined) {
+      gameState.p2.activeChargePercent = (gameState.p2Input && gameState.p2Input.currentPercent) ? gameState.p2Input.currentPercent : 100;
+    }
+
+    freezePlayerChargeBar('p2', moveKey);
 
     const flagEl = document.getElementById('p2-action-flag');
     if (flagEl) {
@@ -623,9 +727,6 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
           const stillConfirmed = otherKey === 'p1' ? (gameState.input && gameState.input.isConfirmed) : gameState.p2IsConfirmed;
           if (!stillConfirmed) {
             const chosenKey = getCPUMoveChoice(otherPlayer, player, otherKey);
-            if (otherPlayer.activeChargePercent === undefined) {
-              otherPlayer.activeChargePercent = 100;
-            }
             confirmPlayerAction(chosenKey, otherKey);
           }
         }, reactionDelay);
@@ -669,30 +770,13 @@ function startRoundCountdown() {
     });
   }
 
-  const humanControlPanel = document.getElementById('human-control-panel') || document.querySelector('.bottom-controls') || document.getElementById('p1-controls');
-  const chargeStatusEl = document.getElementById('charge-status-display') || document.getElementById('charge-status');
-  const p1ChargeFill = document.getElementById('p1-charge-fill') || document.getElementById('charge-fill');
-
-  if (gameState.p1 && gameState.p1.isCPU && gameState.p2 && gameState.p2.isCPU) {
-    if (humanControlPanel) humanControlPanel.style.display = 'none';
-    if (chargeStatusEl) chargeStatusEl.style.display = 'none';
-    if (p1ChargeFill) {
-      p1ChargeFill.style.width = '0%';
-      p1ChargeFill.textContent = '';
-    }
-  } else {
-    if (humanControlPanel) {
-      humanControlPanel.hidden = !!(gameState.p1 && gameState.p1.isCPU);
-      humanControlPanel.style.display = (gameState.p1 && gameState.p1.isCPU) ? 'none' : 'flex';
-    }
-    if (chargeStatusEl) chargeStatusEl.style.display = 'block';
-  }
+  updateControlPanelsVisibility();
 
   setTimeout(() => {
     if (gameState.input) gameState.input.acceptingInputs = true;
   }, 300);
 
-  // FAINT STATE LIFECYCLE EVALUATION
+  // FAINT STATE EVALUATION
   ['p1', 'p2'].forEach(slot => {
     const player = gameState[slot];
     if (!player) return;
@@ -755,22 +839,35 @@ function startRoundCountdown() {
   const timerEl = document.getElementById('turn-timer');
   if (timerEl) timerEl.textContent = `TIME: ${gameState.turnTimerSeconds}s`;
 
+  // CPU REAL-TIME CHARGING SCHEDULER
   ['p1', 'p2'].forEach(slot => {
     const player = gameState[slot];
     if (player && player.isCPU && !player.isFainted) {
       if (slot === 'p2' && gameState.p2AlwaysIdle) return;
 
-      const thinkTime = Math.floor(Math.random() * 1000 + 800);
+      const oppSlot = slot === 'p1' ? 'p2' : 'p1';
+      const difficulty = slot === 'p1' 
+        ? (gameState.matchConfig?.p1Difficulty || 'normal') 
+        : (gameState.matchConfig?.p2Difficulty || 'normal');
+
+      let moveKey = getCPUMoveChoice(player, gameState[oppSlot], slot);
+      const dir = moveKey.split('+')[0];
+
+      const chargeInfo = (typeof calculateCPUCharge === 'function')
+        ? calculateCPUCharge(player, gameState[oppSlot], moveKey, difficulty)
+        : { chargePercent: 85, chargeDelayMs: 1200 };
+
+      if (dir && dir !== 'DO_NOTHING') {
+        startPlayerCharge(slot, dir, chargeInfo.chargePercent);
+      }
+
       setTimeout(() => {
-        if (gameState.roundPhase !== 'INPUT' || (slot === 'p1' ? (gameState.input && gameState.input.isConfirmed) : gameState.p2IsConfirmed)) return;
-        const oppSlot = slot === 'p1' ? 'p2' : 'p1';
-        let moveKey = getCPUMoveChoice(player, gameState[oppSlot], slot);
-        
-        if (player.activeChargePercent === undefined) {
-          player.activeChargePercent = 100;
+        if (gameState.roundPhase !== 'INPUT') return;
+        const isConfirmed = slot === 'p1' ? (gameState.input && gameState.input.isConfirmed) : gameState.p2IsConfirmed;
+        if (!isConfirmed) {
+          confirmPlayerAction(moveKey, slot);
         }
-        confirmPlayerAction(moveKey, slot);
-      }, thinkTime);
+      }, chargeInfo.chargeDelayMs);
     }
   });
 
@@ -799,10 +896,6 @@ function startRoundCountdown() {
             moveKey = getCPUAggressiveFallback(slot);
           }
 
-          if (player.activeChargePercent === undefined) {
-            player.activeChargePercent = 90;
-          }
-
           confirmPlayerAction(moveKey, slot);
         }
       });
@@ -814,7 +907,6 @@ function startRoundCountdown() {
       if (!gameState.input || !gameState.input.isConfirmed) {
         if (gameState.p1 && gameState.p1.isCPU) {
           let mk = getCPUAggressiveFallback('p1');
-          if (gameState.p1.activeChargePercent === undefined) gameState.p1.activeChargePercent = 85;
           confirmPlayerAction(mk, 'p1');
         } else {
           if (!gameState.input) gameState.input = {};
@@ -827,7 +919,6 @@ function startRoundCountdown() {
       if (!gameState.p2IsConfirmed) {
         if (gameState.p2 && gameState.p2.isCPU && !gameState.p2AlwaysIdle) {
           let mk = getCPUAggressiveFallback('p2');
-          if (gameState.p2.activeChargePercent === undefined) gameState.p2.activeChargePercent = 85;
           confirmPlayerAction(mk, 'p2');
         } else {
           gameState.p2IsConfirmed = true;
@@ -1040,28 +1131,13 @@ async function executeTurnResolutionPhase() {
 
     gameState.p1SelectedMoveKey = p1MoveKey;
     gameState.p2SelectedMoveKey = p2MoveKey;
-
-    const flag1El = document.getElementById('p1-action-flag');
-    if (flag1El) {
-      flag1El.hidden = false;
-      flag1El.textContent = p1MoveKey === 'DO_NOTHING' ? 'DO NOTHING' : `LOCKED ${gameState.p1.activeChargePercent || 100}%!`;
-    }
-    const flag2El = document.getElementById('p2-action-flag');
-    if (flag2El) {
-      flag2El.hidden = false;
-      flag2El.textContent = p2MoveKey === 'DO_NOTHING' ? 'DO NOTHING' : `LOCKED ${gameState.p2.activeChargePercent || 100}%!`;
-    }
   } else {
     if (gameState.p1.isCPU) {
       p1MoveKey = getCPUMoveChoice(gameState.p1, gameState.p2, 'p1');
     } else {
       p1MoveKey = gameState.input ? gameState.input.selectedMoveKey : null;
       if (gameState.p1.activeChargePercent === undefined) {
-        if (gameState.input && typeof gameState.input.currentPercent === 'number' && gameState.input.currentPercent > 0) {
-          gameState.p1.activeChargePercent = gameState.input.currentPercent;
-        } else {
-          gameState.p1.activeChargePercent = 100;
-        }
+        gameState.p1.activeChargePercent = (gameState.input && typeof gameState.input.currentPercent === 'number' && gameState.input.currentPercent > 0) ? gameState.input.currentPercent : 100;
       }
     }
 
@@ -1448,7 +1524,6 @@ async function executeTurnResolutionPhase() {
     processRoundBuffs(gameState.p1);
     processRoundBuffs(gameState.p2);
 
-    // PASSIVE RECOVERY CHECK (ONLY IF NOT FAINTED)
     ['p1', 'p2'].forEach(slot => {
       const player = gameState[slot];
       if (player) {
@@ -1641,12 +1716,7 @@ function startBattle(matchConfig) {
       updateCharacterMedia('p2', 'IDLE');
     }
 
-    const humanControls = document.getElementById('human-control-panel');
-    if (humanControls) {
-      humanControls.hidden = !!gameState.p1.isCPU;
-      humanControls.style.display = gameState.p1.isCPU ? 'none' : 'flex';
-    }
-
+    updateControlPanelsVisibility();
     launchRoundTimer();
 
     if (gameState.p1.isCPU && gameState.p2.isCPU) {
@@ -1672,9 +1742,7 @@ function returnToSelectScreen() {
   
   if (battleScreen) battleScreen.hidden = true;
   if (battleMsg) battleMsg.hidden = true;
-  if (selectScreen) {
-    selectScreen.hidden = false;
-  }
+  if (selectScreen) selectScreen.hidden = false;
 
   if (window.vsSelectionState) {
     window.vsSelectionState.step = 1;
@@ -1694,25 +1762,9 @@ function handleGameOverInput(e) {
   }
 }
 
-function bindCommandButtons() {
-  const buttons = document.querySelectorAll('.pad-btn');
-  buttons.forEach(btn => {
-    const key = btn.id.replace('key-', '');
-
-    const handlePressDown = (e) => {
-      e.preventDefault();
-      if (typeof unlockMobileVideos === 'function') unlockMobileVideos();
-
-      btn.classList.add('active');
-      setTimeout(() => btn.classList.remove('active'), 200);
-
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
-    };
-
-    btn.onmousedown = handlePressDown;
-    btn.addEventListener('touchstart', handlePressDown, { passive: false });
-  });
-}
+/* ==========================================================================
+   DUAL PLAYER INPUT BINDINGS (P1 & P2 HUMAN SUPPORT)
+   ========================================================================== */
 
 function bindKeyboardInputs() {
   window.addEventListener('keydown', (e) => {
@@ -1723,7 +1775,11 @@ function bindKeyboardInputs() {
       return;
     }
 
-    const key = e.key ? e.key.toUpperCase() : '';
+    if (gameState.roundPhase !== 'INPUT') return;
+
+    const key = e.key ? e.key : '';
+    const upperKey = key.toUpperCase();
+    const code = e.code;
 
     if (e.key === '0') {
       gameState.p2AlwaysIdle = !gameState.p2AlwaysIdle;
@@ -1734,42 +1790,112 @@ function bindKeyboardInputs() {
       return;
     }
 
-    if (gameState.roundPhase !== 'INPUT' || !gameState.input || !gameState.input.acceptingInputs || (gameState.p1 && gameState.p1.isCPU) || gameState.input.isConfirmed || (gameState.p1 && gameState.p1.isFainted)) return;
+    // --- P1 HUMAN INPUT (WASD + JKLI) ---
+    if (gameState.p1 && !gameState.p1.isCPU && !gameState.p1.isFainted && !(gameState.input && gameState.input.isConfirmed)) {
+      if (['A', 'D', 'W', 'S'].includes(upperKey)) {
+        if (gameState.input.heldDirection !== upperKey) {
+          gameState.input.heldDirection = upperKey;
+          startPlayerCharge('p1', upperKey, 100);
+        }
+      }
 
-    if (['A', 'D', 'W', 'S'].includes(key)) {
-      if (gameState.input.heldDirection === key) return;
-
-      if (gameState.input.chargeInterval) clearInterval(gameState.input.chargeInterval);
-
-      ['W', 'A', 'S', 'D'].forEach(dir => {
-        const keyEl = document.getElementById(`key-${dir}`);
-        if (keyEl) keyEl.classList.remove('active');
-      });
-
-      gameState.input.heldDirection = key;
-      gameState.input.chargeStartTime = Date.now();
-      gameState.input.currentPercent = 0;
-      gameState.input.chargeInterval = setInterval(updateChargeProgress, 30);
-
-      const keyEl = document.getElementById(`key-${key}`);
-      if (keyEl) keyEl.classList.add('active');
+      if (['J', 'K', 'L', 'I'].includes(upperKey)) {
+        if (!gameState.input.heldDirection) {
+          triggerFloatingText('p1', 'TAP DIRECTION FIRST!', 'scratch');
+          return;
+        }
+        confirmPlayerAction(`${gameState.input.heldDirection}+${upperKey}`, 'p1');
+      }
     }
 
-    if (['J', 'K', 'L', 'I'].includes(key)) {
-      if (!gameState.input.heldDirection) {
-        triggerFloatingText('p1', 'TAP DIRECTION FIRST!', 'scratch');
-        return;
+    // --- P2 HUMAN INPUT (ARROWS + NUMPAD / U,I,O,P) ---
+    if (gameState.p2 && !gameState.p2.isCPU && !gameState.p2.isFainted && !gameState.p2IsConfirmed) {
+      if (!gameState.p2Input) gameState.p2Input = { heldDirection: null };
+
+      let p2Dir = null;
+      if (key === 'ArrowUp') p2Dir = 'W';
+      if (key === 'ArrowLeft') p2Dir = 'A';
+      if (key === 'ArrowDown') p2Dir = 'S';
+      if (key === 'ArrowRight') p2Dir = 'D';
+
+      if (p2Dir && gameState.p2Input.heldDirection !== p2Dir) {
+        gameState.p2Input.heldDirection = p2Dir;
+        startPlayerCharge('p2', p2Dir, 100);
       }
 
-      const actKeyEl = document.getElementById(`key-${key}`);
-      if (actKeyEl) {
-        actKeyEl.classList.add('active');
-        setTimeout(() => actKeyEl.classList.remove('active'), 200);
-      }
+      let p2Act = null;
+      if (key === '1' || code === 'Numpad1' || key.toLowerCase() === 'u') p2Act = 'J';
+      if (key === '2' || code === 'Numpad2' || key.toLowerCase() === 'i') p2Act = 'K';
+      if (key === '3' || code === 'Numpad3' || key.toLowerCase() === 'o') p2Act = 'L';
+      if (key === '5' || code === 'Numpad5' || key.toLowerCase() === 'p') p2Act = 'I';
 
-      confirmPlayerAction(`${gameState.input.heldDirection}+${key}`, 'p1');
+      if (p2Act) {
+        if (!gameState.p2Input.heldDirection) {
+          triggerFloatingText('p2', 'TAP DIRECTION FIRST!', 'scratch');
+          return;
+        }
+        confirmPlayerAction(`${gameState.p2Input.heldDirection}+${p2Act}`, 'p2');
+      }
     }
   });
+}
+
+function bindCommandButtons() {
+  const buttons = document.querySelectorAll('.pad-btn');
+  buttons.forEach(btn => {
+    const btnId = btn.id;
+
+    const handlePressDown = (e) => {
+      e.preventDefault();
+      if (typeof unlockMobileVideos === 'function') unlockMobileVideos();
+
+      btn.classList.add('active');
+      setTimeout(() => btn.classList.remove('active'), 200);
+
+      if (btnId.startsWith('p2-')) {
+        handleP2TouchAction(btnId);
+      } else {
+        const key = btnId.replace('key-', '').replace('p1-key-', '');
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+      }
+    };
+
+    btn.onmousedown = handlePressDown;
+    btn.addEventListener('touchstart', handlePressDown, { passive: false });
+  });
+}
+
+function handleP2TouchAction(btnId) {
+  if (!gameState.p2 || gameState.p2.isCPU || gameState.p2IsConfirmed || gameState.roundPhase !== 'INPUT') return;
+
+  if (!gameState.p2Input) gameState.p2Input = { heldDirection: null };
+
+  const action = btnId.replace('p2-key-', '');
+
+  if (['W', 'A', 'S', 'D', 'UP', 'LEFT', 'DOWN', 'RIGHT'].includes(action)) {
+    let dir = action;
+    if (action === 'UP') dir = 'W';
+    if (action === 'LEFT') dir = 'A';
+    if (action === 'DOWN') dir = 'S';
+    if (action === 'RIGHT') dir = 'D';
+
+    gameState.p2Input.heldDirection = dir;
+    startPlayerCharge('p2', dir, 100);
+  }
+
+  if (['J', 'K', 'L', 'I', '1', '2', '3', '5'].includes(action)) {
+    let act = action;
+    if (action === '1') act = 'J';
+    if (action === '2') act = 'K';
+    if (action === '3') act = 'L';
+    if (action === '5') act = 'I';
+
+    if (!gameState.p2Input.heldDirection) {
+      triggerFloatingText('p2', 'TAP DIRECTION FIRST!', 'scratch');
+      return;
+    }
+    confirmPlayerAction(`${gameState.p2Input.heldDirection}+${act}`, 'p2');
+  }
 }
 
 document.addEventListener('keydown', handleGameOverInput);
@@ -1781,6 +1907,9 @@ window.confirmPlayerAction = confirmPlayerAction;
 window.getCPUAggressiveFallback = getCPUAggressiveFallback;
 window.getCPUMoveChoice = getCPUMoveChoice;
 window.startBattle = startBattle;
+window.startPlayerCharge = startPlayerCharge;
+window.freezePlayerChargeBar = freezePlayerChargeBar;
+window.resetPlayerChargeBars = resetPlayerChargeBars;
 
 window.addEventListener('DOMContentLoaded', () => {
   bindKeyboardInputs();
