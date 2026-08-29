@@ -264,7 +264,7 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
 };
 
 /**
- * Real-time Charge Target & Delay Calculation Bridge
+ * Real-Time Button Hold & Charge Monitor Integration
  */
 window.selectCPUMoveAndCharge = function(cpuPlayer, opponentPlayer, slotKey) {
   const movesData = slotKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
