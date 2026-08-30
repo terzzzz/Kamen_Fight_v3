@@ -120,6 +120,7 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
 
       centerVid.removeEventListener('ended', cleanUpAndResolve);
       centerVid.removeEventListener('error', cleanUpAndResolve);
+      centerVid.removeEventListener('loadedmetadata', setupDynamicTimeout);
 
       centerVid.pause();
       centerBox.hidden = true;
@@ -128,8 +129,21 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
       resolve();
     };
 
+    const setupDynamicTimeout = () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      if (maxDurationMs) {
+        fallbackTimer = setTimeout(cleanUpAndResolve, maxDurationMs);
+      } else if (centerVid.duration && !isNaN(centerVid.duration) && centerVid.duration > 0) {
+        // Allow full video playback + 1000ms safety buffer before forcing cleanup
+        fallbackTimer = setTimeout(cleanUpAndResolve, Math.ceil(centerVid.duration * 1000) + 1000);
+      } else {
+        fallbackTimer = setTimeout(cleanUpAndResolve, 8000);
+      }
+    };
+
     centerVid.addEventListener('ended', cleanUpAndResolve);
     centerVid.addEventListener('error', cleanUpAndResolve);
+    centerVid.addEventListener('loadedmetadata', setupDynamicTimeout);
 
     const videoUrl = `assets/videos/${riderId}/${videoFile}`;
     centerVid.src = videoUrl;
@@ -142,7 +156,8 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
       });
     }
 
-    fallbackTimer = setTimeout(cleanUpAndResolve, maxDurationMs || 2500);
+    // Default safety timer before metadata loads (8s generously accommodates long special attacks)
+    fallbackTimer = setTimeout(cleanUpAndResolve, maxDurationMs || 8000);
   });
 }
 
