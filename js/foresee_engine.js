@@ -1,5 +1,5 @@
 /**
- * Shared 3-Turn Foresee Simulation Engine (Minimax / Expectimax Tree)
+ * Shared 3-Turn / 4-Turn Foresee Simulation Engine (Minimax / Expectimax Tree)
  * Path: js/foresee_engine.js
  * Compatible with CPU vs. CPU and CPU vs. Human matches.
  */
@@ -7,13 +7,20 @@
 (function (window) {
   'use strict';
 
-  // HELPER: CALCULATE RANGE PRIORITY (PROJECTILE > REACH > MELEE)
-  function getMoveRangePrioritySim(move) {
+  /**
+   * HELPER: CALCULATE RANGE & MOVE TYPE PRIORITY 
+   * Hierarchy: PROJECTILE (4) > REACH/ROPE (3) > W SKILLS / UTILITY (2) > MELEE (1)
+   */
+  function getMoveRangePrioritySim(move, moveKey = '') {
     if (!move) return 1;
     const range = (move.rangeType || 'MELEE').toUpperCase();
-    if (range === 'PROJECTILE') return 3;
-    if (range === 'REACH' || range === 'ROPE' || range === 'MID_RANGE') return 2;
-    return 1;
+    const type = (move.type || '').toUpperCase();
+    const isWSkill = (moveKey && moveKey.startsWith('W')) || type === 'UTILITY' || type === 'BUFF';
+
+    if (range === 'PROJECTILE') return 4;
+    if (range === 'REACH' || range === 'ROPE' || range === 'MID_RANGE') return 3;
+    if (isWSkill) return 2; // All W skills execute before standard D/S melee attacks!
+    return 1;               // Standard D / S Melee
   }
 
   /**
@@ -40,14 +47,17 @@
     nextOpp.chi = Math.max(0, nextOpp.chi - (oppMove.chiCost || 0));
 
     // 2. Determine Turn Priority
-    const selfPri = getMoveRangePrioritySim(selfMove);
-    const oppPri = getMoveRangePrioritySim(oppMove);
+    const selfPri = getMoveRangePrioritySim(selfMove, selfMoveKey);
+    const oppPri = getMoveRangePrioritySim(oppMove, oppMoveKey);
 
     let selfGoesFirst = true;
     if (oppPri > selfPri) {
       selfGoesFirst = false;
     } else if (selfPri === oppPri) {
-      if (selfMoveKey.startsWith('D') && oppMoveKey.startsWith('S')) selfGoesFirst = false;
+      // Tie-breakers within the same priority tier
+      if (selfMoveKey.startsWith('W') && !oppMoveKey.startsWith('W')) selfGoesFirst = true;
+      else if (!selfMoveKey.startsWith('W') && oppMoveKey.startsWith('W')) selfGoesFirst = false;
+      else if (selfMoveKey.startsWith('D') && oppMoveKey.startsWith('S')) selfGoesFirst = false;
       else if (selfMoveKey.startsWith('S') && oppMoveKey.startsWith('D')) selfGoesFirst = true;
     }
 
@@ -153,13 +163,13 @@
 
   /**
    * Dynamic Non-Linear Evaluation Function
-   * Scores leaf states based on LP, Chi, Faint, and Low/Full Power Thresholds.
+   * Scores leaf states based on LP, Chi, Faint, Low/Full Power Thresholds, and 套路 (Routine) Continuity.
    */
   function evaluateLeafState(selfState, oppState, characterWeights = {}) {
     if (oppState.lp <= 0) return 10000;
     if (selfState.lp <= 0) return -10000;
 
-    const selfMaxLp = selfState.maxLp || 1850;
+    const selfMaxLp = selfState.maxLp || 2300;
     const selfHpRatio = selfState.lp / selfMaxLp;
 
     let lpUrgencyMultiplier = 1.0;
@@ -173,19 +183,19 @@
     const W_CHI = (characterWeights.W_CHI || 8.0) * resourceDiscount;
     const W_FAINT = (characterWeights.W_FAINT || 2.0) * resourceDiscount;
 
-    // Direct linear Chi valuation (allows 15-16 Chi to be scored highly for Full Power)
     let selfEffectiveChi = selfState.chi;
     let oppEffectiveChi = oppState.chi;
 
     let score = ((selfState.lp - oppState.lp) * W_LP) +
                 ((selfEffectiveChi - oppEffectiveChi) * W_CHI);
 
-    // Dynamic Threshold Valuation
+    // --- Dynamic Threshold Valuation ---
     if (selfState.chi < 5) score -= 80 * resourceDiscount;      // Low Power Vulnerability Penalty
     if (oppState.chi < 5) score += 80 * resourceDiscount;       // Target Low Power Opponent Bonus
     if (selfState.chi > 14) score += 100 * resourceDiscount;    // Full Power Bonus
     if (oppState.chi > 14) score -= 100 * resourceDiscount;     // Opponent Full Power Threat
 
+    // --- Faint Valuation ---
     let oppFaintVal = (oppState.isFainted || oppState.faintMeter >= 100 || oppState.cashedInFaint) ? 100 : oppState.faintMeter;
     let selfFaintVal = (selfState.isFainted || selfState.faintMeter >= 100 || selfState.cashedInFaint) ? 100 : selfState.faintMeter;
 
@@ -198,11 +208,30 @@
       score -= 300 * lpUrgencyMultiplier;
     }
 
+    // --- 套路 (ROUTINE & SYNERGY) CONTINUITY BONUSES ---
+    // 1. Buff Synergy Bonus: Reward holding an active ATK buff if Chi is available to launch a Special
+    const hasAtkBuff = selfState.activeBuffs && selfState.activeBuffs.some(b => b.id === 'atk_up' || b.id === 'typhoon_focus');
+    if (hasAtkBuff && selfState.chi >= 6) {
+      score += 120;
+    }
+
+    // 2. Faint Cash-In Bonus: Strongly encourage executing high-damage finishers on fainted/stunned targets
+    if (oppState.isFainted || oppState.faintMeter >= 80) {
+      if (selfState.chi >= 6) {
+        score += 180;
+      }
+    }
+
+    // 3. Nigo Full Power Hoarding Bonus: Encourage holding Chi when close to Full Power milestone (>14 Chi)
+    if (selfState.id === 'nigo' && selfState.chi >= 12 && selfState.chi < 15) {
+      score += 90;
+    }
+
     return score;
   }
 
   /**
-   * Main 3-Turn Decision Search Function (Supports Minimax & Expectimax)
+   * Main Decision Search Function (Supports Minimax & Expectimax with Alpha-Beta Pruning)
    */
   function run3TurnForeseeSearch(cpuPlayer, opponentPlayer, selfMovesData, oppMovesData, options = {}) {
     const maxDepth = options.maxDepth || 2;
@@ -210,14 +239,15 @@
     const isOpponentLocked = options.isOpponentLocked || false;
     const lockedOpponentMoveKey = options.lockedOpponentMoveKey || null;
 
+    // Use Expectimax for depths 1-2; switch to Minimax for depths 3+ to assume worst-case opponent play
     const useExpectimax = options.useExpectimax !== undefined ? options.useExpectimax : (maxDepth < 3);
 
     const getValidMoves = (player, moves) => {
-      const valid = Object.keys(moves).filter(k => (moves[k].chiCost || 0) <= player.chi);
+      const valid = Object.keys(moves || {}).filter(k => (moves[k].chiCost || 0) <= player.chi);
       return valid.length > 0 ? valid : ['D+J'];
     };
 
-    function searchTree(selfState, oppState, depth) {
+    function searchTree(selfState, oppState, depth, alpha = -Infinity, beta = Infinity) {
       if (depth === 0 || selfState.lp <= 0 || oppState.lp <= 0) {
         return evaluateLeafState(selfState, oppState, characterWeights);
       }
@@ -236,22 +266,29 @@
             const { nextSelf, nextOpp } = simulateTurnState(
               selfState, oppState, sMove, oMove, selfMovesData, oppMovesData
             );
-            sumVal += searchTree(nextSelf, nextOpp, depth - 1);
+            sumVal += searchTree(nextSelf, nextOpp, depth - 1, alpha, beta);
           }
           oppBranchVal = sumVal / oppValid.length;
         } else {
+          // Minimax: Assume opponent selects the response that minimizes CPU score
           let worstVal = Infinity;
           for (let oMove of oppValid) {
             const { nextSelf, nextOpp } = simulateTurnState(
               selfState, oppState, sMove, oMove, selfMovesData, oppMovesData
             );
-            const nodeVal = searchTree(nextSelf, nextOpp, depth - 1);
+            const nodeVal = searchTree(nextSelf, nextOpp, depth - 1, alpha, beta);
             worstVal = Math.min(worstVal, nodeVal);
+
+            // Alpha-Beta Pruning
+            beta = Math.min(beta, worstVal);
+            if (beta <= alpha) break;
           }
           oppBranchVal = worstVal;
         }
 
         bestSelfVal = Math.max(bestSelfVal, oppBranchVal);
+        alpha = Math.max(alpha, bestSelfVal);
+        if (beta <= alpha) break;
       }
 
       return bestSelfVal;
@@ -266,6 +303,8 @@
 
     let bestMove = selfValid[0] || 'D+J';
     let bestScore = -Infinity;
+    let alpha = -Infinity;
+    let beta = Infinity;
 
     for (let sMove of selfValid) {
       let moveScore = 0;
@@ -276,7 +315,7 @@
           const { nextSelf, nextOpp } = simulateTurnState(
             cpuPlayer, opponentPlayer, sMove, oMove, selfMovesData, oppMovesData
           );
-          sumVal += searchTree(nextSelf, nextOpp, maxDepth - 1);
+          sumVal += searchTree(nextSelf, nextOpp, maxDepth - 1, alpha, beta);
         }
         moveScore = sumVal / oppValid.length;
       } else {
@@ -285,8 +324,11 @@
           const { nextSelf, nextOpp } = simulateTurnState(
             cpuPlayer, opponentPlayer, sMove, oMove, selfMovesData, oppMovesData
           );
-          const score = searchTree(nextSelf, nextOpp, maxDepth - 1);
+          const score = searchTree(nextSelf, nextOpp, maxDepth - 1, alpha, beta);
           worstVal = Math.min(worstVal, score);
+
+          beta = Math.min(beta, worstVal);
+          if (beta <= alpha) break;
         }
         moveScore = worstVal;
       }
@@ -295,6 +337,8 @@
         bestScore = moveScore;
         bestMove = sMove;
       }
+
+      alpha = Math.max(alpha, bestScore);
     }
 
     return bestMove;
@@ -303,7 +347,10 @@
   // EXPORT UNIFIED FORESEE ENGINE TO WINDOW
   window.ForeseeEngine = {
     getBestMove: function (cpuPlayer, opponentPlayer, availableMoves, profile = {}, depth = 2) {
-      const oppMovesData = typeof getOpponentMovesData === 'function' ? getOpponentMovesData(opponentPlayer) : {};
+      const oppMovesData = (typeof window.getOpponentMovesData === 'function') 
+        ? window.getOpponentMovesData(opponentPlayer) 
+        : (slotKey => slotKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves)(cpuPlayer.isCPU && cpuPlayer.slot === 'p1' ? 'p2' : 'p1') || {};
+
       return run3TurnForeseeSearch(cpuPlayer, opponentPlayer, availableMoves, oppMovesData, {
         maxDepth: depth,
         characterWeights: profile.weights || {}
