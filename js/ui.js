@@ -72,9 +72,9 @@ function stopBattleBGM() {
 // 2. CHARACTER SELECTION STATE & ROSTER STORAGE
 // ==========================================================================
 let AVAILABLE_RIDERS = [
-  { id: 'ichigo', name: 'Kamen Rider Ichigo', icon: 'assets/images/icons/ichigo.png', maxLp: 1850 },
-  { id: 'nigo', name: 'Kamen Rider Nigo', icon: 'assets/images/icons/nigo.png', maxLp: 2000 },
-  { id: 'v3', name: 'Kamen Rider V3', icon: 'assets/images/icons/v3.png', maxLp: 1950 }
+  { id: 'ichigo', name: 'Kamen Rider Ichigo', icon: 'assets/images/icons/ichigo.png', maxLp: 2300 },
+  { id: 'nigo', name: 'Kamen Rider Nigo', icon: 'assets/images/icons/nigo.png', maxLp: 2500 },
+  { id: 'v3', name: 'Kamen Rider V3', icon: 'assets/images/icons/v3.png', maxLp: 2400 }
 ];
 
 let vsSelectionState = {
@@ -415,9 +415,10 @@ function validateAndStartMatch() {
 
 /**
  * Refreshes player LP, Faint, and Chi meters during combat.
- * Dynamic Chi States:
+ * Dynamic Chi Colors & Thresholds:
  * - Chi < 5  => Red styling + "LOW POWER (DEF -25%)" tag
  * - Chi > 14 => Gold styling + "FULL POWER (ATK/ACC +20%)" tag
+ * - Normal   => P1 Cyan (#00ffcc) vs P2 Blue (#00bfff)
  */
 function updatePlayerHUD(slotKey, playerObj) {
   if (!playerObj) return;
@@ -441,7 +442,7 @@ function updatePlayerHUD(slotKey, playerObj) {
     faintFillEl.style.height = `${faintPct}%`;
   }
 
-  // 3. Chi Figure & Bar Threshold Styling
+  // 3. Chi Figure & Bar Threshold Styling (Explicit color resets)
   const chi = playerObj.chi || 0;
   const maxChi = playerObj.maxChi || 16;
   if (chiEl) chiEl.textContent = `CHI: ${chi} / ${maxChi}`;
@@ -451,15 +452,35 @@ function updatePlayerHUD(slotKey, playerObj) {
     chiBarFillEl.style.width = `${chiPct}%`;
   }
 
+  const normalColor = isP1 ? '#00ffcc' : '#00bfff'; // P1 Cyan vs P2 Blue
+
   if (chi < 5) {
-    if (chiEl) chiEl.className = 'stat-value-styled chi-text-low';
-    if (chiBarFillEl) chiBarFillEl.className = 'chi-bar-fill chi-bar-low';
+    if (chiEl) {
+      chiEl.className = 'stat-value-styled chi-text-low';
+      chiEl.style.color = '#ff3333';
+    }
+    if (chiBarFillEl) {
+      chiBarFillEl.className = 'chi-bar-fill chi-bar-low';
+      chiBarFillEl.style.background = '#ff3333';
+    }
   } else if (chi > 14) {
-    if (chiEl) chiEl.className = 'stat-value-styled chi-text-full';
-    if (chiBarFillEl) chiBarFillEl.className = 'chi-bar-fill chi-bar-full';
+    if (chiEl) {
+      chiEl.className = 'stat-value-styled chi-text-full';
+      chiEl.style.color = '#ffcc00';
+    }
+    if (chiBarFillEl) {
+      chiBarFillEl.className = 'chi-bar-fill chi-bar-full';
+      chiBarFillEl.style.background = '#ffcc00';
+    }
   } else {
-    if (chiEl) chiEl.className = 'stat-value-styled';
-    if (chiBarFillEl) chiBarFillEl.className = 'chi-bar-fill';
+    if (chiEl) {
+      chiEl.className = 'stat-value-styled';
+      chiEl.style.color = normalColor;
+    }
+    if (chiBarFillEl) {
+      chiBarFillEl.className = 'chi-bar-fill';
+      chiBarFillEl.style.background = normalColor;
+    }
   }
 
   // 4. Buff Tray Injection (Active Buffs + Low/Full Power Status Badges)
