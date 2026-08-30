@@ -99,7 +99,7 @@ function startRoundCountdown() {
   const timerEl = document.getElementById('turn-timer');
   if (timerEl) timerEl.textContent = `TIME: ${window.gameState.turnTimerSeconds}s`;
 
-  // CPU AI Decision Trigger
+  // CPU AI Decision Trigger (Delegates strictly to js/ai.js)
   ['p1', 'p2'].forEach(slot => {
     const player = window.gameState[slot];
     if (player && player.isCPU && !player.isFainted) {
@@ -111,9 +111,14 @@ function startRoundCountdown() {
         const isConfirmed = slot === 'p1' ? window.gameState.input.isConfirmed : window.gameState.p2IsConfirmed;
         if (isConfirmed) return;
 
-        const moves = slot === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
-        const keys = moves ? Object.keys(moves).filter(k => (moves[k].chiCost || 0) <= player.chi) : ['D+J'];
-        const chosenKey = keys.length > 0 ? keys[Math.floor(Math.random() * keys.length)] : 'D+J';
+        const oppSlot = slot === 'p1' ? 'p2' : 'p1';
+        const oppPlayer = window.gameState[oppSlot];
+
+        // CALL THE SMART AI ENGINE IN js/ai.js
+        const chosenKey = typeof window.getCPUMoveChoice === 'function'
+          ? window.getCPUMoveChoice(player, oppPlayer, slot)
+          : 'D+J';
+
         confirmPlayerAction(chosenKey, slot);
       }, thinkTime);
     }
