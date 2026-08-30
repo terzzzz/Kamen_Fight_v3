@@ -229,10 +229,10 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
 };
 
 window.selectCPUMoveAndCharge = function(cpuPlayer, opponentPlayer, slotKey) {
-  const movesData = slotKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
+  const movesData = slotKey === 'p1' ? window.gameState?.p1Moves : window.gameState?.p2Moves;
   const difficulty = slotKey === 'p1'
-    ? (window.gameState.matchConfig?.p1Difficulty || 'normal')
-    : (window.gameState.matchConfig?.p2Difficulty || 'normal');
+    ? (window.gameState?.matchConfig?.p1Difficulty || 'normal')
+    : (window.gameState?.matchConfig?.p2Difficulty || 'normal');
 
   let availableMoves = {};
   if (movesData) {
@@ -256,6 +256,15 @@ window.selectCPUMoveAndCharge = function(cpuPlayer, opponentPlayer, slotKey) {
   }
 
   return { moveKey: chosenMoveKey, targetChargePct: targetChargePct };
+};
+
+// Global Helper Alias for Match Manager & Engine Calls
+window.getCPUMoveChoice = function(cpuPlayer, opponentPlayer, slotKey) {
+  const result = window.selectCPUMoveAndCharge(cpuPlayer, opponentPlayer, slotKey);
+  if (cpuPlayer) {
+    cpuPlayer.activeChargePercent = result.targetChargePct;
+  }
+  return result.moveKey;
 };
 
 window.saveAIKnowledge = function() {
