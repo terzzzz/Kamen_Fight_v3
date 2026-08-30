@@ -35,6 +35,7 @@ window.globalAIKnowledge = {
    * Records outcome of each round, tracking opponent charge habits and move success
    */
   recordTurnOutcome: function(cpuPlayer, opponentPlayer, oppMoveKey, cpuMoveKey, outcomeData) {
+    if (!cpuPlayer) return;
     const oppId = (opponentPlayer && opponentPlayer.id) ? opponentPlayer.id : 'human';
 
     if (!this.playerProfiles[oppId]) {
@@ -123,7 +124,7 @@ window.calculateMoveSuccess = function(cpuPlayer, opponentPlayer, cpuMoveKey, ou
  * Core AI Selection Engine with Low Power & Full Power Threshold Evaluation
  */
 window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, difficulty = 'normal') {
-  if (cpuPlayer.isFainted) return 'DO_NOTHING';
+  if (!cpuPlayer || cpuPlayer.isFainted) return 'DO_NOTHING';
 
   const moveKeys = Object.keys(availableMoves || {});
   if (moveKeys.length === 0) return 'D+J';
@@ -132,6 +133,9 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
   const riderProfile = (window.RIDER_AI_PROFILES && window.RIDER_AI_PROFILES[cpuPlayer.id]) 
     ? window.RIDER_AI_PROFILES[cpuPlayer.id] 
     : { weights: { W_LP: 1.0, W_CHI: 8.0, W_FAINT: 2.0 }, preferredChiGoal: 6 };
+
+  const currentChi = cpuPlayer.chi !== undefined ? cpuPlayer.chi : 8;
+  const oppLp = opponentPlayer ? opponentPlayer.lp : 2500;
 
   // --- EASY DIFFICULTY ---
   if (diff === 'easy') {
@@ -146,8 +150,17 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
 
   // --- NORMAL DIFFICULTY ---
   if (diff === 'normal') {
+    // Low Chi Protection (< 5 Chi = LOW POWER DEBUFF RECOVERY)
+    if (currentChi < 5 && Math.random() < 0.85) {
+      const zeroCostKeys = moveKeys.filter(k => (availableMoves[k].chiCost || 0) === 0 && k.startsWith('D+'));
+      if (zeroCostKeys.length > 0) {
+        zeroCostKeys.sort((a, b) => (availableMoves[b].baseDamage || 0) - (availableMoves[a].baseDamage || 0));
+        return zeroCostKeys[0];
+      }
+    }
+
     const roll = Math.random();
-    const specialKeys = moveKeys.filter(k => k.startsWith('S+') && (availableMoves[k].chiCost || 0) <= cpuPlayer.chi);
+    const specialKeys = moveKeys.filter(k => k.startsWith('S+') && (availableMoves[k].chiCost || 0) <= currentChi);
     const physicalKeys = moveKeys.filter(k => k.startsWith('D+'));
     const utilityKeys = moveKeys.filter(k => k.startsWith('W+'));
 
@@ -156,7 +169,7 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
       if (recKey) return recKey;
     }
 
-    if (roll < 0.35 && specialKeys.length > 0 && cpuPlayer.chi >= 5) {
+    if (roll < 0.35 && specialKeys.length > 0 && currentChi >= 5) {
       return specialKeys[Math.floor(Math.random() * specialKeys.length)];
     }
     if (roll < 0.85 && physicalKeys.length > 0) {
@@ -175,21 +188,20 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
   }
 
   const mem = cpuPlayer.memory;
-  const currentChi = cpuPlayer.chi || 0;
   const oppChi = (opponentPlayer && typeof opponentPlayer.chi === 'number') ? opponentPlayer.chi : 8;
 
   if (currentChi >= mem.targetChiGoal) {
     mem.strategy = 'BURST';
-  } else if (currentChi <= 4) {
+  } else if (currentChi < 5) {
     mem.targetChiGoal = Math.random() < 0.5 ? riderProfile.preferredChiGoal : 15;
-    mem.strategy = Math.random() < 0.4 ? 'BUFF_UP' : 'HOARD';
+    mem.strategy = 'HOARD';
   }
 
   let bestKey = moveKeys[0];
   let bestScore = -99999;
 
   const oppId = (opponentPlayer && opponentPlayer.id) ? opponentPlayer.id : 'human';
-  const oppProfile = window.globalAIKnowledge.playerProfiles[oppId];
+  const oppProfile = window.globalAIKnowledge ? window.globalAIKnowledge.playerProfiles[oppId] : null;
 
   moveKeys.forEach(key => {
     const m = availableMoves[key];
@@ -200,18 +212,22 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
     const isS = key.startsWith('S');
     const cost = m.chiCost || 0;
 
-    // --- DYNAMIC LP & HIT CHANCE THRESHOLD CALCULATIONS ---
     let evalDamage = m.baseDamage || 0;
     let evalHitChance = m.hitChance || 80;
     let evalFaintDmg = m.baseFaintDamage || 0;
 
-    // 1. FULL POWER ATTACKER BONUS (Chi > 14 => +20% Dmg, +20% Accuracy)
+    // 1. LETHAL FINISHER BONUS
+    if (evalDamage >= oppLp && m.type !== 'DEFENSE') {
+      score += 500;
+    }
+
+    // 2. FULL POWER ATTACKER BONUS (Chi > 14 => +20% Dmg, +20% Accuracy)
     if (currentChi > 14) {
       evalDamage *= 1.20;
       evalHitChance = Math.min(100, evalHitChance + 20);
     }
 
-    // 2. LOW POWER DEFENDER VULNERABILITY (Opponent Chi < 5 => +25% Damage & Faint Taken)
+    // 3. LOW POWER DEFENDER VULNERABILITY (Opponent Chi < 5 => +25% Damage & Faint Taken)
     if (oppChi < 5) {
       evalDamage *= 1.25;
       evalFaintDmg *= 1.25;
@@ -220,31 +236,33 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
     const hitRate = evalHitChance / 100;
     score += (evalDamage * hitRate) * riderProfile.weights.W_LP;
 
-    // 3. LOW POWER SELF-PRESERVATION (Avoid dropping below 5 Chi)
+    // 4. LOW POWER SELF-PRESERVATION (Strictly avoid dropping below 5 Chi)
     const remainingChi = currentChi - cost;
-    if (remainingChi < 5 && (!opponentPlayer || evalDamage < opponentPlayer.lp)) {
-      score -= 60; // Penalty for placing self in Low Power State
+    if (currentChi < 5 && cost > 0) {
+      score -= 150; // Heavy penalty for spending scarce Chi while in Low Power mode
+    } else if (remainingChi < 5 && evalDamage < oppLp) {
+      score -= 80; // Penalty for placing self in Low Power State
     }
 
     if (mem.strategy === 'HOARD' && isS && cost < mem.targetChiGoal) {
-      score -= 50;
+      score -= 60;
     } else if (mem.strategy === 'BURST' && isS) {
-      score += cost * 12;
+      score += cost * 15;
     }
 
     if (cost === 0 && isD) {
       const chiGain = (m.chiRefundOnHit || 0) + 2;
       score += chiGain * riderProfile.weights.W_CHI;
-      if (key !== 'D+J') score += 10;
+      if (key !== 'D+J') score += 15;
     } else if (!isS) {
       score -= cost * (riderProfile.weights.W_CHI * 0.5);
     }
 
-    // 4. Anti-Repetition Penalty
+    // 5. Anti-Repetition Penalty
     const timesUsed = mem.recentMoves.filter(k => k === key).length;
     score -= timesUsed * 35;
 
-    // 5. Utility & Faint Buildup Valuation
+    // 6. Utility & Faint Buildup Valuation
     if (m.faintRecovery && cpuPlayer.faintMeter > 30) {
       score += (m.faintRecovery * (cpuPlayer.faintMeter / 100)) * riderProfile.weights.W_FAINT * 1.5;
     }
@@ -254,22 +272,21 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
     if (m.buff && mem.strategy === 'BUFF_UP' && !cpuPlayer.activeBuffs?.some(b => b.id === m.buff.id)) {
       score += 45;
     }
-    if (m.debuff && opponentPlayer && !opponentPlayer.activeBuffs?.some(b => b.id === m.debuff.id)) {
-      score += 45;
-    }
 
-    // 6. Historical Memory & Opponent Habit Exploitation
-    const memKey = `${cpuPlayer.id}_vs_${oppId}_${key}`;
-    const memData = window.globalAIKnowledge.memoryStore[memKey];
-    if (memData && memData.uses > 3) {
-      const winRatio = memData.wins / memData.uses;
-      score += winRatio * 30;
-    }
+    // 7. Historical Memory & Opponent Habit Exploitation
+    if (window.globalAIKnowledge) {
+      const memKey = `${cpuPlayer.id}_vs_${oppId}_${key}`;
+      const memData = window.globalAIKnowledge.memoryStore[memKey];
+      if (memData && memData.uses > 3) {
+        const winRatio = memData.wins / memData.uses;
+        score += winRatio * 30;
+      }
 
-    if (oppProfile && oppProfile.totalRounds > 5) {
-      const guardRatio = oppProfile.guardCount / oppProfile.totalRounds;
-      if (guardRatio > 0.4 && m.unblockable) {
-        score += 50;
+      if (oppProfile && oppProfile.totalRounds > 5) {
+        const guardRatio = oppProfile.guardCount / oppProfile.totalRounds;
+        if (guardRatio > 0.4 && m.unblockable) {
+          score += 50;
+        }
       }
     }
 
@@ -287,6 +304,30 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
   }
 
   return bestKey;
+};
+
+/**
+ * Main Direct Bridge Called by match_manager.js
+ */
+window.getCPUMoveChoice = function(cpuPlayer, opponentPlayer, slotKey = 'p2') {
+  if (!cpuPlayer) return 'D+J';
+
+  const movesData = slotKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
+  const difficulty = cpuPlayer.difficulty || (slotKey === 'p1'
+    ? (window.gameState.matchConfig?.p1Difficulty || 'normal')
+    : (window.gameState.matchConfig?.p2Difficulty || 'normal'));
+
+  let availableMoves = {};
+  if (movesData) {
+    Object.keys(movesData).forEach(key => {
+      const m = movesData[key];
+      if (m && (m.chiCost || 0) <= (cpuPlayer.chi !== undefined ? cpuPlayer.chi : 8)) {
+        availableMoves[key] = m;
+      }
+    });
+  }
+
+  return window.selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
 };
 
 /**
