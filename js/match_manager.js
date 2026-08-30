@@ -99,12 +99,12 @@ function startRoundCountdown() {
   const timerEl = document.getElementById('turn-timer');
   if (timerEl) timerEl.textContent = `TIME: ${window.gameState.turnTimerSeconds}s`;
 
-  // CPU AI Decision Trigger (Delegates strictly to js/ai.js)
+  // CPU AI Decision Trigger
   ['p1', 'p2'].forEach(slot => {
     const player = window.gameState[slot];
     if (player && player.isCPU && !player.isFainted) {
       if (slot === 'p2' && window.gameState.p2AlwaysIdle) return;
-      const thinkTime = Math.floor(Math.random() * 1500 + 1000);
+      const thinkTime = Math.floor(Math.random() * 1200 + 800);
 
       setTimeout(() => {
         if (window.gameState.roundPhase !== 'INPUT') return;
@@ -113,11 +113,14 @@ function startRoundCountdown() {
 
         const oppSlot = slot === 'p1' ? 'p2' : 'p1';
         const oppPlayer = window.gameState[oppSlot];
+        const movesData = slot === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
 
-        // CALL THE SMART AI ENGINE IN js/ai.js
-        const chosenKey = typeof window.getCPUMoveChoice === 'function'
-          ? window.getCPUMoveChoice(player, oppPlayer, slot)
-          : 'D+J';
+        let chosenKey = 'D+J';
+        if (typeof window.selectCPUMove === 'function') {
+          chosenKey = window.selectCPUMove(player, oppPlayer, movesData, player.difficulty || 'normal');
+        } else if (typeof window.getCPUMoveChoice === 'function') {
+          chosenKey = window.getCPUMoveChoice(player, oppPlayer, slot);
+        }
 
         confirmPlayerAction(chosenKey, slot);
       }, thinkTime);
@@ -176,7 +179,6 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
     }
   }
 
-  // Trigger turn resolution once both players are locked in
   if (window.gameState.input.isConfirmed && window.gameState.p2IsConfirmed && window.gameState.roundPhase === 'INPUT') {
     if (window.gameState.timerInterval) clearInterval(window.gameState.timerInterval);
     window.gameState.roundPhase = 'RESOLUTION';
