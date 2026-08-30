@@ -20,7 +20,8 @@ const GAME_CONFIG = window.GAME_CONFIG || {
   CHARGE_TIME_REQUIRED: 2.5,
   LATE_EXTENSION_BONUS: 1.0,
   LATE_DECISION_THRESHOLD: 7.0,
-  HARD_CPU_HP_MULTIPLIER: 1.30
+  HARD_CPU_HP_MULTIPLIER: 1.10,
+  HARD_CPU_DMG_MULTIPLIER: 1.10
 };
 
 var DO_NOTHING_MOVE = DO_NOTHING_MOVE || {
@@ -207,11 +208,22 @@ function getAttackerChiGainOnHit(atkMove, atkMoveKey) {
   return 0;
 }
 
-function getMoveRangePriority(move) {
+/**
+ * Priority Hierarchy:
+ * Priority 4: PROJECTILE
+ * Priority 3: REACH / ROPE / MID_RANGE
+ * Priority 2: W SKILLS / UTILITY / BUFF (Executes before standard D/S melee!)
+ * Priority 1: Standard MELEE Attacks
+ */
+function getMoveRangePriority(move, moveKey = '') {
   if (!move) return 1;
   const range = (move.rangeType || 'MELEE').toUpperCase();
-  if (range === 'PROJECTILE') return 3;
-  if (range === 'REACH' || range === 'ROPE' || range === 'MID_RANGE') return 2;
+  const type = (move.type || '').toUpperCase();
+  const isWSkill = (moveKey && moveKey.startsWith('W')) || type === 'UTILITY' || type === 'BUFF';
+
+  if (range === 'PROJECTILE') return 4;
+  if (range === 'REACH' || range === 'ROPE' || range === 'MID_RANGE') return 3;
+  if (isWSkill) return 2;
   return 1;
 }
 
@@ -257,6 +269,7 @@ async function applyFaintBuildUp(player, playerKey, customAmount = null) {
 
 function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMoveKey, defenderKey) {
   const rules = window.COMBAT_RULES || COMBAT_RULES;
+  const config = window.GAME_CONFIG || GAME_CONFIG;
   const isOffensive = !!(atkMove && rules.OFFENSIVE_TYPES.includes(atkMove.type?.toUpperCase()));
 
   if (!isOffensive) {
@@ -403,12 +416,13 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
 
   let jumpAtkMultiplier = attacker.airborneTicks > 0 ? 1.15 : 1.0;
 
-  // CHI THRESHOLD DAMAGE MULTIPLIERS
+  // CHI THRESHOLD & HARD CPU DAMAGE MULTIPLIERS
   let fullPowerMultiplier = attacker.chi > 14 ? 1.20 : 1.0; // FULL POWER: +20% Damage Dealt
   let lowPowerDefMultiplier = defender.chi < 5 ? 1.25 : 1.0;  // LOW POWER: +25% Damage Taken
+  let hardDmgMultiplier = (attacker.isCPU && attacker.difficulty === 'hard') ? (config.HARD_CPU_DMG_MULTIPLIER || 1.10) : 1.0;
 
   let baseDamage = atkMove.baseDamage || 0;
-  let calculatedDmg = baseDamage * chargeFactor * typhoonMultiplier * focusMultiplier * jumpAtkMultiplier * fullPowerMultiplier * lowPowerDefMultiplier * damageRatio;
+  let calculatedDmg = baseDamage * chargeFactor * typhoonMultiplier * focusMultiplier * jumpAtkMultiplier * fullPowerMultiplier * lowPowerDefMultiplier * hardDmgMultiplier * damageRatio;
 
   let finalDmg = (isGlancing && calculatedDmg > 0) ? Math.max(1, Math.floor(calculatedDmg * 0.20)) : Math.floor(calculatedDmg);
 
@@ -426,57 +440,39 @@ async function executeTurnResolutionPhase() {
   const p1StartFaint = window.gameState.p1.faintMeter;
   const p2StartFaint = window.gameState.p2.faintMeter;
 
-  let p1MoveKey = null;
-  let p2MoveKey = null;
+  let p1MoveKey = window.gameState.p1SelectedMoveKey;
+  let p2MoveKey = window.gameState.p2AlwaysIdle ? 'DO_NOTHING' : window.gameState.p2SelectedMoveKey;
 
   if (window.gameState.p1.isCPU && window.gameState.p2.isCPU) {
-    if (Math.random() < 0.5) {
-      p1MoveKey = getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1');
-      p2MoveKey = getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2');
-    } else {
-      p2MoveKey = getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2');
-      p1MoveKey = getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1');
-    }
-
+    if (!p1MoveKey) p1MoveKey = typeof getCPUMoveChoice === 'function' ? getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1') : 'D+J';
+    if (!p2MoveKey) p2MoveKey = typeof getCPUMoveChoice === 'function' ? getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2') : 'D+J';
     window.gameState.p1SelectedMoveKey = p1MoveKey;
     window.gameState.p2SelectedMoveKey = p2MoveKey;
-  } else {
-    if (window.gameState.p1.isCPU) {
-      p1MoveKey = getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1');
-    } else {
-      p1MoveKey = window.gameState.input ? window.gameState.input.selectedMoveKey : null;
-      if (window.gameState.p1.activeChargePercent === undefined) {
-        window.gameState.p1.activeChargePercent = (window.gameState.input && typeof window.gameState.input.currentPercent === 'number' && window.gameState.input.currentPercent > 0) ? window.gameState.input.currentPercent : 100;
-      }
-    }
-
-    p2MoveKey = window.gameState.p2AlwaysIdle ? 'DO_NOTHING' : window.gameState.p2SelectedMoveKey;
-    if (!p2MoveKey && window.gameState.p2.isCPU && !window.gameState.p2AlwaysIdle) {
-      p2MoveKey = getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2');
-    } else if (!window.gameState.p2.isCPU && window.gameState.p2.activeChargePercent === undefined) {
-      window.gameState.p2.activeChargePercent = typeof window.gameState.p2ChargePercent === 'number' ? window.gameState.p2ChargePercent : 100;
-    }
   }
 
   if (!p1MoveKey) p1MoveKey = 'DO_NOTHING';
   if (!p2MoveKey) p2MoveKey = 'DO_NOTHING';
 
-  if (window.gameState.p1.isCPU && p1MoveKey !== 'DO_NOTHING' && typeof simulateCPUButtonPress === 'function') {
-    simulateCPUButtonPress(p1MoveKey, 'p1');
-  }
-  if (window.gameState.p2.isCPU && !window.gameState.p2AlwaysIdle && p2MoveKey !== 'DO_NOTHING' && typeof simulateCPUButtonPress === 'function') {
-    simulateCPUButtonPress(p2MoveKey, 'p2');
-  }
-
   const defaultMove = { name: 'Do Nothing', type: 'IDLE', baseDamage: 0, chiCost: 0 };
   let p1Move = (typeof getMoveForPlayer === 'function' ? getMoveForPlayer('p1', p1MoveKey) : null) || defaultMove;
   let p2Move = (typeof getMoveForPlayer === 'function' ? getMoveForPlayer('p2', p2MoveKey) : null) || defaultMove;
 
+  // --- IMMEDIATE CHI DEDUCTION & HUD REFRESH FOR BOTH PLAYERS ---
+  if (p1MoveKey !== 'DO_NOTHING' && p1Move.chiCost) {
+    window.gameState.p1.chi = Math.max(0, window.gameState.p1.chi - p1Move.chiCost);
+  }
+  if (p2MoveKey !== 'DO_NOTHING' && p2Move.chiCost) {
+    window.gameState.p2.chi = Math.max(0, window.gameState.p2.chi - p2Move.chiCost);
+  }
+  updateHUD();
+
+  // Retrieve actual captured charge percentages
+  const p1Charge = window.gameState.p1.activeChargePercent !== undefined ? window.gameState.p1.activeChargePercent : 100;
+  const p2Charge = window.gameState.p2.activeChargePercent !== undefined ? window.gameState.p2.activeChargePercent : 100;
+
   const battleMsg = document.getElementById('battle-message');
   if (battleMsg) {
     battleMsg.hidden = false;
-    const p1Charge = window.gameState.p1.activeChargePercent !== undefined ? window.gameState.p1.activeChargePercent : 100;
-    const p2Charge = window.gameState.p2.activeChargePercent !== undefined ? window.gameState.p2.activeChargePercent : 100;
     battleMsg.innerHTML = `P1: ${p1Move.name} (${p1Charge}%) VS P2: ${p2Move.name} (${p2Charge}%)`;
   }
 
@@ -488,11 +484,9 @@ async function executeTurnResolutionPhase() {
 
   let p1IsS = p1MoveKey.startsWith('S');
   let p2IsS = p2MoveKey.startsWith('S');
-  let p1IsD = p1MoveKey.startsWith('D');
-  let p2IsD = p2MoveKey.startsWith('D');
 
-  let p1RangePriority = getMoveRangePriority(p1Move);
-  let p2RangePriority = getMoveRangePriority(p2Move);
+  let p1RangePriority = getMoveRangePriority(p1Move, p1MoveKey);
+  let p2RangePriority = getMoveRangePriority(p2Move, p2MoveKey);
 
   if (!p1IsIdle && p2IsIdle) {
     p1GoesFirst = true;
@@ -502,14 +496,15 @@ async function executeTurnResolutionPhase() {
     p1GoesFirst = true;
   } else if (p1RangePriority < p2RangePriority) {
     p1GoesFirst = false;
-  } else if (p1IsS && p2IsD) {
+  } else if (p1MoveKey.startsWith('W') && !p2MoveKey.startsWith('W')) {
     p1GoesFirst = true;
-  } else if (p1IsD && p2IsS) {
+  } else if (!p1MoveKey.startsWith('W') && p2MoveKey.startsWith('W')) {
+    p1GoesFirst = false;
+  } else if (p1IsS && !p2IsS) {
+    p1GoesFirst = true;
+  } else if (!p1IsS && p2IsS) {
     p1GoesFirst = false;
   } else {
-    let p1Charge = window.gameState.p1.activeChargePercent !== undefined ? window.gameState.p1.activeChargePercent : 100;
-    let p2Charge = window.gameState.p2.activeChargePercent !== undefined ? window.gameState.p2.activeChargePercent : 100;
-
     let p1Elapsed = p1Charge * 0.025;
     let p2Elapsed = p2Charge * 0.025;
 
@@ -537,7 +532,6 @@ async function executeTurnResolutionPhase() {
   let defKey2 = p1GoesFirst ? 'p1' : 'p2';
 
   let defender1WasInterrupted = false;
-  let defender1GuardDeducted = false;
 
   // STEP 1 EXECUTION
   if (move1.type !== 'IDLE' && key1 !== 'DO_NOTHING') {
@@ -550,9 +544,6 @@ async function executeTurnResolutionPhase() {
       attacker1.faintMeter = Math.max(0, attacker1.faintMeter - move1.faintRecovery);
       triggerFloatingText(atkKey1, `FAINT -${recovered}`, 'heal');
     }
-
-    attacker1.chi = Math.max(0, attacker1.chi - (move1.chiCost || 0));
-    updateHUD();
 
     if (move1.type === 'DEFENSE') {
       let isOpponentOffensive = !!(move2 && rules.OFFENSIVE_TYPES.includes(move2.type?.toUpperCase()));
@@ -572,10 +563,6 @@ async function executeTurnResolutionPhase() {
 
       if (result.isOffensive) {
         if (move2.type === 'DEFENSE' && !defender1.isFainted) {
-          defender1.chi = Math.max(0, defender1.chi - (move2.chiCost || 0));
-          defender1GuardDeducted = true;
-          updateHUD();
-
           if (result.guardSuccess) {
             const guardVid = move2.video || 'guard.mp4';
             if (typeof window.playCenterVideo === 'function') {
@@ -681,9 +668,6 @@ async function executeTurnResolutionPhase() {
       triggerFloatingText(atkKey2, `FAINT -${recovered}`, 'heal');
     }
 
-    attacker2.chi = Math.max(0, attacker2.chi - (move2.chiCost || 0));
-    updateHUD();
-
     if (typeof window.playCenterVideo === 'function') {
       await window.playCenterVideo(atkKey2, move2.video || 'idle.mp4', move2.name, null, move2);
     }
@@ -781,10 +765,6 @@ async function executeTurnResolutionPhase() {
     let isOpponentOffensive = !!(move1 && rules.OFFENSIVE_TYPES.includes(move1.type?.toUpperCase()));
     if (!isOpponentOffensive && (move2.chiCost || 0) === 0) {
       await applyFaintBuildUp(attacker2, atkKey2, rules.FAINT_PENALTY_IDLE_GUARD);
-    }
-    if (!defender1GuardDeducted) {
-      attacker2.chi = Math.max(0, attacker2.chi - (move2.chiCost || 0));
-      updateHUD();
     }
   } else if ((attacker2.isFainted || defender1WasInterrupted) && move2.type !== 'IDLE' && key2 !== 'DO_NOTHING' && move2.type !== 'DEFENSE') {
     triggerFloatingText(atkKey2, 'INTERRUPTED!', 'scratch');
@@ -905,3 +885,15 @@ async function executeTurnResolutionPhase() {
 window.executeTurnResolutionPhase = executeTurnResolutionPhase;
 window.applyFaintBuildUp = applyFaintBuildUp;
 window.resolveAttack = resolveAttack;
+window.getMoveRangePriority = getMoveRangePriority;
+window.getAttackerChiGainOnHit = getAttackerChiGainOnHit;
+window.getFaintDamageForMove = getFaintDamageForMove;
+window.triggerLPFlash = triggerLPFlash;
+window.triggerFloatingNumber = triggerFloatingNumber;
+window.triggerFloatingText = triggerFloatingText;
+window.triggerStaggeredPopups = triggerStaggeredPopups;
+window.applyBuff = applyBuff;
+window.processRoundBuffs = processRoundBuffs;
+window.handleAirborneState = handleAirborneState;
+window.setSideBoxesBlank = setSideBoxesBlank;
+window.updateHUD = updateHUD;
