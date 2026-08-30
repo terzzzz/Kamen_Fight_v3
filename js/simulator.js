@@ -18,7 +18,7 @@ async function loadSimulatorMoves() {
     console.warn("Simulator: Could not load data/moves.json, using fallback roster.");
   }
 
-  const fallback = typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
+  const fallback = typeof window.FALLBACK_ICHIGO_MOVES !== 'undefined' ? window.FALLBACK_ICHIGO_MOVES : {};
   cachedSimulatorMoves = {
     'ichigo': fallback,
     'nigo': fallback,
