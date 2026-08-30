@@ -1,5 +1,5 @@
 /**
- * Headless Match Simulator Engine
+ * Synchronized Headless Match Simulator Engine
  * Path: js/simulator.js
  */
 
@@ -45,58 +45,24 @@ function getSimMovePriority(move) {
 function selectCPUMoveSim(cpu, opp, moves, difficulty) {
   if (cpu.isFainted) return 'DO_NOTHING';
 
-  const diff = String(difficulty || 'normal').toLowerCase();
+  if (typeof window.selectCPUMove === 'function') {
+    let availableMoves = {};
+    Object.keys(moves || {}).forEach(k => {
+      if ((moves[k]?.chiCost || 0) <= cpu.chi) {
+        availableMoves[k] = moves[k];
+      }
+    });
+    return window.selectCPUMove(cpu, opp, availableMoves, difficulty);
+  }
 
-  // Filter moves affordable with current Chi
   const availableKeys = Object.keys(moves || {}).filter(k => (moves[k]?.chiCost || 0) <= cpu.chi);
-  if (availableKeys.length === 0) return 'D+J';
-
-  const offensiveKeys = availableKeys.filter(k => (moves[k].baseDamage || 0) > 0 && !k.startsWith('A+'));
-  const specialKeys = availableKeys.filter(k => k.startsWith('S+') && (moves[k].baseDamage || 0) > 0);
-  const physicalKeys = availableKeys.filter(k => k.startsWith('D+') && (moves[k].baseDamage || 0) > 0);
-  const defenseKeys = availableKeys.filter(k => k.startsWith('A+'));
-
-  // HARD AI: Optimal move evaluation & high-value special usage
-  if (diff === 'hard') {
-    if (specialKeys.length > 0 && cpu.chi >= 4 && Math.random() < 0.85) {
-      specialKeys.sort((a, b) => ((moves[b].baseDamage || 0) * (moves[b].hitChance || 80)) - ((moves[a].baseDamage || 0) * (moves[a].hitChance || 80)));
-      return specialKeys[0];
-    }
-    if (offensiveKeys.length > 0) {
-      offensiveKeys.sort((a, b) => ((moves[b].baseDamage || 0) * (moves[b].hitChance || 80)) - ((moves[a].baseDamage || 0) * (moves[a].hitChance || 80)));
-      return offensiveKeys[0];
-    }
-    return 'D+J';
-  }
-
-  // NORMAL AI: Balanced offense & physical chi generation
-  if (diff === 'normal') {
-    const roll = Math.random();
-    if (roll < 0.35 && specialKeys.length > 0 && cpu.chi >= 3) {
-      return specialKeys[Math.floor(Math.random() * specialKeys.length)];
-    }
-    if (roll < 0.85 && physicalKeys.length > 0) {
-      return physicalKeys[Math.floor(Math.random() * physicalKeys.length)];
-    }
-    if (defenseKeys.length > 0 && roll >= 0.85 && roll < 0.95) {
-      return defenseKeys[Math.floor(Math.random() * defenseKeys.length)];
-    }
-    return offensiveKeys.length > 0 ? offensiveKeys[Math.floor(Math.random() * offensiveKeys.length)] : 'D+J';
-  }
-
-  // EASY AI: Low-tier basic strikes
-  const roll = Math.random();
-  if (roll < 0.15) return 'DO_NOTHING';
-  if (roll < 0.70 && physicalKeys.length > 0) {
-    return physicalKeys[Math.floor(Math.random() * physicalKeys.length)];
-  }
-  return availableKeys[Math.floor(Math.random() * availableKeys.length)];
+  return availableKeys.length > 0 ? availableKeys[Math.floor(Math.random() * availableKeys.length)] : 'D+J';
 }
 
 async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = 'normal', p2Difficulty = 'normal') {
   const allMoves = await loadSimulatorMoves();
   const rules = window.COMBAT_RULES || { STARTING_CHI: 8, MAX_CHI: 16, FAINT_THRESHOLD: 100, HIT_BUILDUP: 25 };
-  const hpMultiplier = (window.GAME_CONFIG && window.GAME_CONFIG.HARD_CPU_HP_MULTIPLIER) || 1.30;
+  const hpMultiplier = (window.GAME_CONFIG && window.GAME_CONFIG.HARD_CPU_HP_MULTIPLIER) || 1.10;
 
   const p1Diff = String(p1Difficulty || 'normal').toLowerCase();
   const p2Diff = String(p2Difficulty || 'normal').toLowerCase();
@@ -117,17 +83,17 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
   };
 
   for (let matchIndex = 0; matchIndex < count; matchIndex++) {
-    let p1MaxLp = p1Rider.maxLp || 1850;
+    let p1MaxLp = p1Rider.maxLp || 2300;
     if (p1Diff === 'hard') p1MaxLp = Math.floor(p1MaxLp * hpMultiplier);
 
-    let p2MaxLp = p2Rider.maxLp || 2000;
+    let p2MaxLp = p2Rider.maxLp || 2500;
     if (p2Diff === 'hard') p2MaxLp = Math.floor(p2MaxLp * hpMultiplier);
 
-    let p1 = { id: p1Rider.id || 'ichigo', name: p1Rider.name || 'P1', maxLp: p1MaxLp, lp: p1MaxLp, chi: rules.STARTING_CHI || 8, maxChi: rules.MAX_CHI || 16, faintMeter: 0, isFainted: false, willBeFainted: false };
-    let p2 = { id: p2Rider.id || 'nigo', name: p2Rider.name || 'P2', maxLp: p2MaxLp, lp: p2MaxLp, chi: rules.STARTING_CHI || 8, maxChi: rules.MAX_CHI || 16, faintMeter: 0, isFainted: false, willBeFainted: false };
+    let p1 = { id: p1Rider.id || 'ichigo', name: p1Rider.name || 'P1', isCPU: true, difficulty: p1Diff, maxLp: p1MaxLp, lp: p1MaxLp, chi: rules.STARTING_CHI || 8, maxChi: rules.MAX_CHI || 16, faintMeter: 0, isFainted: false, willBeFainted: false };
+    let p2 = { id: p2Rider.id || 'nigo', name: p2Rider.name || 'P2', isCPU: true, difficulty: p2Diff, maxLp: p2MaxLp, lp: p2MaxLp, chi: rules.STARTING_CHI || 8, maxChi: rules.MAX_CHI || 16, faintMeter: 0, isFainted: false, willBeFainted: false };
 
     let roundCounter = 1;
-    const MAX_ROUNDS = 40;
+    const MAX_ROUNDS = 30;
 
     while (p1.lp > 0 && p2.lp > 0 && roundCounter <= MAX_ROUNDS) {
       if (roundCounter > 1) {
@@ -135,7 +101,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
         p2.chi = Math.min(p2.maxChi, p2.chi + 1);
       }
 
-      // Handle Faint State Progression
       [p1, p2].forEach(p => {
         if (p.willBeFainted) {
           p.isFainted = true;
@@ -153,7 +118,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
       let m1 = getSimMove(p1Moves, p1Key);
       let m2 = getSimMove(p2Moves, p2Key);
 
-      // Range & Category Based Turn Initiative Resolution
       let p1Pri = getSimMovePriority(m1);
       let p2Pri = getSimMovePriority(m2);
 
@@ -177,21 +141,37 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
       let keyFirst = p1GoesFirst ? p1Key : p2Key;
       let keySecond = p1GoesFirst ? p2Key : p1Key;
 
-      // Execute First Attacker
+      // FIRST ATTACKER EXECUTION
       first.chi = Math.max(0, first.chi - (mFirst.chiCost || 0));
       if (mFirst.faintRecovery && first.faintMeter > 0) {
         first.faintMeter = Math.max(0, first.faintMeter - mFirst.faintRecovery);
       }
 
+      let firstInterrupted = false;
+
       if (mFirst.baseDamage > 0 && keyFirst !== 'DO_NOTHING' && !first.isFainted) {
-        let hitRoll = second.isFainted || keySecond === 'DO_NOTHING' || mSecond.type === 'DEFENSE' || (Math.random() * 100 < (mFirst.hitChance || 80));
+        let hitChance = mFirst.hitChance || 80;
+        if (first.chi > 14) hitChance = Math.min(100, hitChance + 20);
+
+        let hitRoll = second.isFainted || keySecond === 'DO_NOTHING' || mSecond.type === 'DEFENSE' || (Math.random() * 100 < hitChance);
         if (hitRoll) {
           let damageMult = mSecond.type === 'DEFENSE' ? 0.30 : 1.0;
-          let dmg = Math.floor((mFirst.baseDamage || 60) * damageMult * (0.85 + Math.random() * 0.30));
+          let baseDmg = mFirst.baseDamage || 60;
+
+          if (first.chi > 14) baseDmg *= 1.20;
+          if (second.chi < 5) baseDmg *= 1.25;
+          if (first.difficulty === 'hard') baseDmg *= 1.10;
+
+          let dmg = Math.floor(baseDmg * damageMult);
           second.lp = Math.max(0, second.lp - dmg);
 
+          if (mSecond.type !== 'DEFENSE') firstInterrupted = true;
+
           if (!second.isFainted) {
-            second.faintMeter += (mFirst.baseFaintDamage || rules.HIT_BUILDUP || 25);
+            let faintDmg = mFirst.baseFaintDamage || rules.HIT_BUILDUP || 25;
+            if (second.chi < 5) faintDmg *= 1.25;
+            second.faintMeter += faintDmg;
+
             if (second.faintMeter >= rules.FAINT_THRESHOLD) {
               second.isFainted = true;
               second.willBeFainted = true;
@@ -202,21 +182,33 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
         }
       }
 
-      // Execute Second Attacker (if alive and not fainted)
+      // SECOND ATTACKER EXECUTION
       second.chi = Math.max(0, second.chi - (mSecond.chiCost || 0));
       if (mSecond.faintRecovery && second.faintMeter > 0) {
         second.faintMeter = Math.max(0, second.faintMeter - mSecond.faintRecovery);
       }
 
-      if (second.lp > 0 && mSecond.baseDamage > 0 && keySecond !== 'DO_NOTHING' && !second.isFainted) {
-        let hitRoll = first.isFainted || keyFirst === 'DO_NOTHING' || mFirst.type === 'DEFENSE' || (Math.random() * 100 < (mSecond.hitChance || 80));
+      if (second.lp > 0 && mSecond.baseDamage > 0 && keySecond !== 'DO_NOTHING' && !second.isFainted && !firstInterrupted) {
+        let hitChance = mSecond.hitChance || 80;
+        if (second.chi > 14) hitChance = Math.min(100, hitChance + 20);
+
+        let hitRoll = first.isFainted || keyFirst === 'DO_NOTHING' || mFirst.type === 'DEFENSE' || (Math.random() * 100 < hitChance);
         if (hitRoll) {
           let damageMult = mFirst.type === 'DEFENSE' ? 0.30 : 1.0;
-          let dmg = Math.floor((mSecond.baseDamage || 60) * damageMult * (0.85 + Math.random() * 0.30));
+          let baseDmg = mSecond.baseDamage || 60;
+
+          if (second.chi > 14) baseDmg *= 1.20;
+          if (first.chi < 5) baseDmg *= 1.25;
+          if (second.difficulty === 'hard') baseDmg *= 1.10;
+
+          let dmg = Math.floor(baseDmg * damageMult);
           first.lp = Math.max(0, first.lp - dmg);
 
           if (!first.isFainted) {
-            first.faintMeter += (mSecond.baseFaintDamage || rules.HIT_BUILDUP || 25);
+            let faintDmg = mSecond.baseFaintDamage || rules.HIT_BUILDUP || 25;
+            if (first.chi < 5) faintDmg *= 1.25;
+            first.faintMeter += faintDmg;
+
             if (first.faintMeter >= rules.FAINT_THRESHOLD) {
               first.isFainted = true;
               first.willBeFainted = true;
