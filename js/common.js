@@ -3,7 +3,7 @@
  * Path: js/common.js
  */
 
-window.COMBAT_RULES = {
+window.COMBAT_RULES = window.COMBAT_RULES || {
   FAINT_THRESHOLD: 100,
   HIT_BUILDUP: 25,
   ROUND_RECOVERY: 13,
@@ -15,7 +15,7 @@ window.COMBAT_RULES = {
   OFFENSIVE_TYPES: ['MELEE', 'PROJECTILE', 'SPECIAL', 'FINISHER', 'PHYSICAL']
 };
 
-window.GAME_CONFIG = {
+window.GAME_CONFIG = window.GAME_CONFIG || {
   ROUND_TIME_LIMIT: 8.0,
   CHARGE_TIME_REQUIRED: 2.5,
   LATE_EXTENSION_BONUS: 1.0,
@@ -24,33 +24,46 @@ window.GAME_CONFIG = {
   HARD_CPU_DMG_MULTIPLIER: 1.10
 };
 
+// Default directional charge duration thresholds in milliseconds
+window.CHARGE_TIMES = window.CHARGE_TIMES || {
+  W: 2000,
+  A: 1500,
+  S: 2500,
+  D: 2000
+};
+
 function getOpponentMovesData(opponentPlayer) {
-  if (typeof gameState !== 'undefined') {
-    if (opponentPlayer === gameState.p1 && gameState.p1Moves) return gameState.p1Moves;
-    if (opponentPlayer === gameState.p2 && gameState.p2Moves) return gameState.p2Moves;
+  if (typeof window.gameState !== 'undefined' && window.gameState) {
+    if (opponentPlayer === window.gameState.p1 && window.gameState.p1Moves) return window.gameState.p1Moves;
+    if (opponentPlayer === window.gameState.p2 && window.gameState.p2Moves) return window.gameState.p2Moves;
   }
-  return typeof FALLBACK_ICHIGO_MOVES !== 'undefined' ? FALLBACK_ICHIGO_MOVES : {};
+  return typeof window.FALLBACK_ICHIGO_MOVES !== 'undefined' ? window.FALLBACK_ICHIGO_MOVES : {};
 }
 
 function getMatchTimingConfig() {
-  const matchCfg = (typeof gameState !== 'undefined' && gameState.matchConfig) ? gameState.matchConfig : {};
-  const sysCfg = (typeof GAME_CONFIG !== 'undefined') ? GAME_CONFIG : (window.GAME_CONFIG || {});
+  const matchCfg = (typeof window.gameState !== 'undefined' && window.gameState && window.gameState.matchConfig) 
+    ? window.gameState.matchConfig 
+    : {};
+  const sysCfg = window.GAME_CONFIG || {};
 
-  const baseRoundWindow = (typeof gameState !== 'undefined' && gameState.roundTimeLimit !== undefined)
-    ? gameState.roundTimeLimit
+  const baseRoundWindow = (window.gameState && window.gameState.roundTimeLimit !== undefined)
+    ? window.gameState.roundTimeLimit
     : (matchCfg.roundTimeLimit || sysCfg.ROUND_TIME_LIMIT || 8.0);
 
-  const chargeTimeRequired = (typeof gameState !== 'undefined' && gameState.chargeTimeRequired !== undefined)
-    ? gameState.chargeTimeRequired
+  const chargeTimeRequired = (window.gameState && window.gameState.chargeTimeRequired !== undefined)
+    ? window.gameState.chargeTimeRequired
     : (matchCfg.chargeTimeRequired || sysCfg.CHARGE_TIME_REQUIRED || 2.5);
 
-  const extensionBonus = (typeof gameState !== 'undefined' && gameState.lateExtensionBonus !== undefined)
-    ? gameState.lateExtensionBonus
+  const extensionBonus = (window.gameState && window.gameState.lateExtensionBonus !== undefined)
+    ? window.gameState.lateExtensionBonus
     : (matchCfg.lateExtensionBonus || sysCfg.LATE_EXTENSION_BONUS || 1.0);
 
-  const lateThreshold = (typeof gameState !== 'undefined' && gameState.lateDecisionThreshold !== undefined)
-    ? gameState.lateDecisionThreshold
+  const lateThreshold = (window.gameState && window.gameState.lateDecisionThreshold !== undefined)
+    ? window.gameState.lateDecisionThreshold
     : (matchCfg.lateDecisionThreshold || sysCfg.LATE_DECISION_THRESHOLD || (baseRoundWindow - 1.0));
 
   return { baseRoundWindow, chargeTimeRequired, extensionBonus, lateThreshold };
 }
+
+window.getOpponentMovesData = getOpponentMovesData;
+window.getMatchTimingConfig = getMatchTimingConfig;
