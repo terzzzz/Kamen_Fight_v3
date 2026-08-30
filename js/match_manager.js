@@ -56,6 +56,16 @@ function resetTurnInputState() {
   if (flag2El) flag2El.hidden = true;
 }
 
+function unlockMobileVideos() {
+  document.querySelectorAll('video').forEach(vid => {
+    vid.muted = true;
+    vid.setAttribute('playsinline', '');
+    vid.setAttribute('webkit-playsinline', '');
+    const p = vid.play();
+    if (p !== undefined) p.catch(() => {});
+  });
+}
+
 function startRoundCountdown() {
   window.gameState.roundPhase = 'INPUT';
   resetTurnInputState();
@@ -76,14 +86,23 @@ function startRoundCountdown() {
     if (window.gameState.input) window.gameState.input.acceptingInputs = true;
   }, 300);
 
-  if (typeof window.updatePlayerHUD === 'function') {
-    window.updatePlayerHUD('p1', window.gameState.p1);
-    window.updatePlayerHUD('p2', window.gameState.p2);
+  // Fail-safe HUD & Media execution
+  try {
+    if (typeof window.updatePlayerHUD === 'function') {
+      window.updatePlayerHUD('p1', window.gameState.p1);
+      window.updatePlayerHUD('p2', window.gameState.p2);
+    }
+  } catch (e) {
+    console.warn("HUD error caught:", e);
   }
 
-  if (typeof window.updateCharacterMedia === 'function') {
-    window.updateCharacterMedia('p1', 'IDLE');
-    window.updateCharacterMedia('p2', 'IDLE');
+  try {
+    if (typeof window.updateCharacterMedia === 'function') {
+      window.updateCharacterMedia('p1', 'IDLE');
+      window.updateCharacterMedia('p2', 'IDLE');
+    }
+  } catch (e) {
+    console.warn("Media error caught:", e);
   }
 
   const battleMsg = document.getElementById('battle-message');
@@ -98,6 +117,21 @@ function startRoundCountdown() {
 
   const timerEl = document.getElementById('turn-timer');
   if (timerEl) timerEl.textContent = `TIME: ${window.gameState.turnTimerSeconds}s`;
+
+  // Guaranteed Turn Countdown Loop
+  window.gameState.timerInterval = setInterval(() => {
+    if (window.gameState.roundPhase !== 'INPUT') return;
+
+    window.gameState.turnTimerSeconds--;
+    if (timerEl) timerEl.textContent = `TIME: ${window.gameState.turnTimerSeconds}s`;
+
+    if (window.gameState.turnTimerSeconds <= 0) {
+      clearInterval(window.gameState.timerInterval);
+
+      if (!window.gameState.input.isConfirmed) confirmPlayerAction('DO_NOTHING', 'p1');
+      if (!window.gameState.p2IsConfirmed) confirmPlayerAction('DO_NOTHING', 'p2');
+    }
+  }, 1000);
 
   // CPU AI Decision Trigger
   ['p1', 'p2'].forEach(slot => {
@@ -116,31 +150,20 @@ function startRoundCountdown() {
         const movesData = slot === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
 
         let chosenKey = 'D+J';
-        if (typeof window.selectCPUMove === 'function') {
-          chosenKey = window.selectCPUMove(player, oppPlayer, movesData, player.difficulty || 'normal');
-        } else if (typeof window.getCPUMoveChoice === 'function') {
-          chosenKey = window.getCPUMoveChoice(player, oppPlayer, slot);
+        try {
+          if (typeof window.selectCPUMove === 'function') {
+            chosenKey = window.selectCPUMove(player, oppPlayer, movesData, player.difficulty || 'normal');
+          } else if (typeof window.getCPUMoveChoice === 'function') {
+            chosenKey = window.getCPUMoveChoice(player, oppPlayer, slot);
+          }
+        } catch (err) {
+          console.warn("CPU Move Decision Exception:", err);
         }
 
         confirmPlayerAction(chosenKey, slot);
       }, thinkTime);
     }
   });
-
-  // Countdown Loop
-  window.gameState.timerInterval = setInterval(() => {
-    if (window.gameState.roundPhase !== 'INPUT') return;
-
-    window.gameState.turnTimerSeconds--;
-    if (timerEl) timerEl.textContent = `TIME: ${window.gameState.turnTimerSeconds}s`;
-
-    if (window.gameState.turnTimerSeconds <= 0) {
-      clearInterval(window.gameState.timerInterval);
-
-      if (!window.gameState.input.isConfirmed) confirmPlayerAction('DO_NOTHING', 'p1');
-      if (!window.gameState.p2IsConfirmed) confirmPlayerAction('DO_NOTHING', 'p2');
-    }
-  }, 1000);
 }
 
 function launchRoundTimer() {
@@ -149,7 +172,7 @@ function launchRoundTimer() {
 }
 
 function confirmPlayerAction(moveKey, playerKey = 'p1') {
-  if (typeof window.unlockMobileVideos === 'function') window.unlockMobileVideos();
+  unlockMobileVideos();
 
   const player = window.gameState[playerKey];
   if (!player) return false;
@@ -194,7 +217,7 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
 
 function bindKeyboardInputs() {
   window.addEventListener('keydown', (e) => {
-    if (typeof window.unlockMobileVideos === 'function') window.unlockMobileVideos();
+    unlockMobileVideos();
 
     if (window.gameState.roundPhase === 'GAME_OVER' && window.gameState.canContinueFromGameOver) {
       if (typeof window.returnToCharSelect === 'function') window.returnToCharSelect();
@@ -239,7 +262,7 @@ function bindCommandButtons() {
 
     const handlePressDown = (e) => {
       e.preventDefault();
-      if (typeof window.unlockMobileVideos === 'function') window.unlockMobileVideos();
+      unlockMobileVideos();
 
       btn.classList.add('active');
       setTimeout(() => btn.classList.remove('active'), 200);
@@ -262,6 +285,7 @@ function bindCommandButtons() {
   });
 }
 
+window.unlockMobileVideos = unlockMobileVideos;
 window.startRoundCountdown = startRoundCountdown;
 window.launchRoundTimer = launchRoundTimer;
 window.confirmPlayerAction = confirmPlayerAction;
