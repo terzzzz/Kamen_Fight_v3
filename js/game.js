@@ -1,246 +1,213 @@
 /**
- * Media, Video & Animation Controller
- * Path: js/media.js
+ * Core Game Orchestrator, Match Initialization & Lifecycle Controller
+ * Path: js/game.js
  */
 
-var mobileVideosUnlocked = window.mobileVideosUnlocked || false;
-
-// iOS & Mobile Autoplay Constraints Unlocker
-function unlockMobileVideos() {
-  if (mobileVideosUnlocked) return;
-
-  const vids = document.querySelectorAll('video');
-  vids.forEach(v => {
-    v.muted = true;
-    v.playsInline = true;
-    v.setAttribute('playsinline', '');
-    v.setAttribute('webkit-playsinline', '');
-    
-    const p = v.play();
-    if (p !== undefined) {
-      p.then(() => {
-        v.pause();
-      }).catch(() => {});
+// Global Game State Initialization Guard
+if (!window.gameState) {
+  window.gameState = {
+    roundCounter: 1,
+    roundPhase: 'IDLE',
+    turnTimerSeconds: 8,
+    timerInterval: null,
+    p1Moves: {},
+    p2Moves: {},
+    videoCache: {},
+    p1: null,
+    p2: null,
+    p2AlwaysIdle: false,
+    canContinueFromGameOver: false,
+    p1SelectedMoveKey: null,
+    p2SelectedMoveKey: null,
+    p1IsConfirmed: false,
+    p2IsConfirmed: false,
+    input: {
+      acceptingInputs: false,
+      heldDirection: null,
+      chargeStartTime: 0,
+      currentPercent: 0,
+      isConfirmed: false,
+      selectedMoveKey: null,
+      lockInTime: 0,
+      chargeInterval: null
     }
-  });
-
-  mobileVideosUnlocked = true;
-  window.mobileVideosUnlocked = true;
+  };
 }
 
-// Orientation Resolver (P1 faces Right, P2 faces Left)
-function getTransformFlip(player, playerKey, moveObj = null) {
-  if (!player) return 'scaleX(1)';
-
-  const nativeFacing = (moveObj && moveObj.sourceFacing) 
-    ? moveObj.sourceFacing 
-    : (player.sourceFacing || (player.id === 'nigo' ? 'right' : 'left'));
-
-  let shouldFlip = false;
-  if (nativeFacing === 'left') {
-    shouldFlip = (playerKey === 'p1');
-  } else {
-    shouldFlip = (playerKey === 'p2');
-  }
-
-  if (moveObj && moveObj.unmirrored) {
-    shouldFlip = !shouldFlip;
-  }
-
-  return shouldFlip ? 'scaleX(-1)' : 'scaleX(1)';
-}
-
-// Safe Non-Blocking Video Asset Preloader
-async function preloadRiderVideos(riderId, riderMoves = {}) {
-  if (!riderId) return;
-
+/**
+ * Initializes and launches a new match given a selection configuration object.
+ * @param {Object} matchConfig - Contains p1Rider, p2Rider, p1IsCPU, p2IsCPU, p1Difficulty, p2Difficulty
+ */
+async function startBattle(matchConfig) {
   if (!window.gameState) window.gameState = {};
+  window.gameState.matchConfig = matchConfig || {};
   if (!window.gameState.videoCache) window.gameState.videoCache = {};
 
-  const baseVideoFiles = [
-    'idle.mp4', 'mid-air.mp4', 'faint.mp4', 'ko.mp4', 'victory.mp4', 'victory2.mp4',
-    'hit.mp4', 'hit_physical.mp4', 'guard.mp4', 'windmill_guard.mp4', 'dodge.mp4'
-  ];
+  const transitionScreen = document.getElementById('match-transition-screen');
+  const splashNames = document.getElementById('splash-names-text');
+  const splashRound = document.getElementById('splash-round-text');
+  const selectScreen = document.getElementById('vs-select-screen');
+  const battleScreen = document.getElementById('battle-screen');
 
-  const moveVideos = Object.values(riderMoves || {})
-    .filter(m => m && typeof m === 'object' && m.video)
-    .map(m => m.video);
+  // Hide selection screen & show transition splash screen
+  if (selectScreen) selectScreen.hidden = true;
+  if (splashNames) {
+    const p1Title = matchConfig.p1Rider?.name || 'P1';
+    const p2Title = matchConfig.p2Rider?.name || 'P2';
+    splashNames.textContent = `${p1Title.toUpperCase()} VS ${p2Title.toUpperCase()}`;
+  }
+  if (splashRound) splashRound.textContent = "GET READY FOR THE FIGHT!";
+  if (transitionScreen) transitionScreen.hidden = false;
 
-  const videoFiles = Array.from(new Set([...baseVideoFiles, ...moveVideos]));
+  // Load Move Sets
+  const p1Id = matchConfig.p1Rider?.id || 'ichigo';
+  const p2Id = matchConfig.p2Rider?.id || 'nigo';
 
-  videoFiles.forEach(file => {
-    const rawUrl = `assets/videos/${riderId}/${file}`;
-    window.gameState.videoCache[rawUrl] = rawUrl;
-  });
-}
+  const fallbackMoves = window.FALLBACK_ICHIGO_MOVES || {};
+  window.gameState.p1Moves = fallbackMoves;
+  window.gameState.p2Moves = fallbackMoves;
 
-// Action Cutscene Video Player (Center Box)
-function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = null, moveObj = null) {
-  return new Promise((resolve) => {
-    unlockMobileVideos();
-
-    const centerBox = document.getElementById('center-box') || document.getElementById('center-screen');
-    const centerVid = document.getElementById('center-video');
-    const actionLabel = document.getElementById('center-action-label') || document.getElementById('center-video-label');
-    
-    if (!centerBox || !centerVid) {
-      resolve();
-      return;
-    }
-
-    const player = window.gameState ? window.gameState[playerKey] : null;
-    if (!player) {
-      resolve();
-      return;
-    }
-
-    if (actionLabel) {
-      const slotPrefix = playerKey.toUpperCase();
-      actionLabel.textContent = actionName ? `[${slotPrefix}] ${player.name} : ${actionName}!` : '';
-      actionLabel.hidden = !actionName;
-    }
-
-    const isMirrorMatch = window.gameState.p1 && window.gameState.p2 && (window.gameState.p1.id === window.gameState.p2.id);
-
-    centerBox.hidden = false;
-    centerVid.muted = true;
-    centerVid.playsInline = true;
-    centerVid.setAttribute('playsinline', '');
-    centerVid.setAttribute('webkit-playsinline', '');
-
-    centerVid.classList.toggle('p2-mirror-palette', playerKey === 'p2' && isMirrorMatch);
-    centerVid.style.transform = getTransformFlip(player, playerKey, moveObj);
-
-    let resolved = false;
-    let fallbackTimer = null;
-
-    const cleanUpAndResolve = () => {
-      if (resolved) return;
-      resolved = true;
-      if (fallbackTimer) clearTimeout(fallbackTimer);
-
-      centerVid.removeEventListener('ended', cleanUpAndResolve);
-      centerVid.removeEventListener('error', cleanUpAndResolve);
-      centerVid.removeEventListener('loadedmetadata', onMetadata);
-
-      centerBox.hidden = true;
-      if (actionLabel) actionLabel.hidden = true;
-      resolve();
-    };
-
-    const onMetadata = () => {
-      if (resolved) return;
-      if (centerVid.duration && !isNaN(centerVid.duration) && centerVid.duration > 0) {
-        if (fallbackTimer) clearTimeout(fallbackTimer);
-        const durationMs = (centerVid.duration * 1000) + 300;
-        const targetTimeout = maxDurationMs ? Math.max(durationMs, maxDurationMs) : durationMs;
-        fallbackTimer = setTimeout(cleanUpAndResolve, targetTimeout);
+  try {
+    const res = await fetch('data/moves.json');
+    if (res.ok) {
+      const allMoves = await res.json();
+      if (allMoves) {
+        window.gameState.p1Moves = allMoves[p1Id] || fallbackMoves;
+        window.gameState.p2Moves = allMoves[p2Id] || fallbackMoves;
       }
-    };
+    }
+  } catch (err) {
+    console.warn("Could not load data/moves.json, using fallback move set.");
+  }
 
-    centerVid.addEventListener('ended', cleanUpAndResolve);
-    centerVid.addEventListener('error', cleanUpAndResolve);
-    centerVid.addEventListener('loadedmetadata', onMetadata);
+  // Initialize Players
+  const rules = window.COMBAT_RULES || { STARTING_CHI: 8, MAX_CHI: 16 };
+  const config = window.GAME_CONFIG || { HARD_CPU_HP_MULTIPLIER: 1.10 };
+  const hpMult = config.HARD_CPU_HP_MULTIPLIER || 1.10;
 
-    const riderId = player.id || 'ichigo';
-    const rawUrl = `assets/videos/${riderId}/${videoFile}`;
-    const videoUrl = (window.gameState.videoCache && window.gameState.videoCache[rawUrl]) || rawUrl;
+  let p1MaxLp = matchConfig.p1Rider?.maxLp || 2300;
+  if (matchConfig.p1IsCPU && matchConfig.p1Difficulty === 'hard') {
+    p1MaxLp = Math.floor(p1MaxLp * hpMult);
+  }
 
-    centerVid.src = videoUrl;
-    centerVid.load();
+  let p2MaxLp = matchConfig.p2Rider?.maxLp || 2500;
+  if (matchConfig.p2IsCPU && matchConfig.p2Difficulty === 'hard') {
+    p2MaxLp = Math.floor(p2MaxLp * hpMult);
+  }
 
-    const playPromise = centerVid.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(() => {
-        setTimeout(cleanUpAndResolve, 1200);
-      });
+  window.gameState.p1 = {
+    id: p1Id,
+    name: matchConfig.p1Rider?.name || 'Kamen Rider Ichigo',
+    sourceFacing: matchConfig.p1Rider?.sourceFacing || 'left',
+    isCPU: !!matchConfig.p1IsCPU,
+    difficulty: matchConfig.p1Difficulty || 'normal',
+    maxLp: p1MaxLp,
+    lp: p1MaxLp,
+    chi: rules.STARTING_CHI || 8,
+    maxChi: rules.MAX_CHI || 16,
+    faintMeter: 0,
+    activeBuffs: [],
+    airborneTicks: 0,
+    airborneAppliedRound: 0,
+    airborneChargePercent: 100,
+    activeChargePercent: 100,
+    isFainted: false,
+    willBeFaintedNextRound: false,
+    tookCleanHitThisRound: false
+  };
+
+  window.gameState.p2 = {
+    id: p2Id,
+    name: matchConfig.p2Rider?.name || 'Kamen Rider Nigo',
+    sourceFacing: matchConfig.p2Rider?.sourceFacing || 'right',
+    isCPU: true,
+    difficulty: matchConfig.p2Difficulty || 'normal',
+    maxLp: p2MaxLp,
+    lp: p2MaxLp,
+    chi: rules.STARTING_CHI || 8,
+    maxChi: rules.MAX_CHI || 16,
+    faintMeter: 0,
+    activeBuffs: [],
+    airborneTicks: 0,
+    airborneAppliedRound: 0,
+    airborneChargePercent: 100,
+    activeChargePercent: 100,
+    isFainted: false,
+    willBeFaintedNextRound: false,
+    tookCleanHitThisRound: false
+  };
+
+  window.gameState.roundCounter = 1;
+
+  // Preload video assets
+  if (typeof window.preloadRiderVideos === 'function') {
+    try {
+      window.preloadRiderVideos(p1Id, window.gameState.p1Moves);
+      window.preloadRiderVideos(p2Id, window.gameState.p2Moves);
+    } catch (e) {
+      console.warn("Video preloader error:", e);
+    }
+  }
+
+  // Transition to battle screen
+  setTimeout(() => {
+    if (transitionScreen) transitionScreen.hidden = true;
+    if (battleScreen) battleScreen.hidden = false;
+
+    // Refresh HUD displays
+    if (typeof window.updatePlayerHUD === 'function') {
+      window.updatePlayerHUD('p1', window.gameState.p1);
+      window.updatePlayerHUD('p2', window.gameState.p2);
     }
 
-    const initialTimeout = (maxDurationMs && maxDurationMs > 2500) ? maxDurationMs : 2500;
-    fallbackTimer = setTimeout(cleanUpAndResolve, initialTimeout);
-  });
-}
-
-function hideCenterScreen() {
-  const centerBox = document.getElementById('center-box') || document.getElementById('center-screen');
-  const centerVid = document.getElementById('center-video');
-  if (centerVid) {
-    centerVid.pause();
-    centerVid.removeAttribute('src');
-  }
-  if (centerBox) centerBox.hidden = true;
-}
-
-// Side Character Media Updater (Idle, Mid-Air, Faint, Victory, KO)
-function updateCharacterMedia(playerKey, stateType) {
-  if (!window.gameState) return;
-  const player = window.gameState[playerKey];
-  if (!player) return;
-
-  const videoEl = document.getElementById(`${playerKey}-video`);
-  const spriteEl = document.getElementById(`${playerKey}-sprite`);
-  if (!videoEl) return;
-
-  let fileName = stateType;
-
-  if (stateType === 'IDLE') {
-    if (player.isFainted) {
-      fileName = 'faint.mp4';
-    } else if (player.airborneTicks > 0) {
-      fileName = 'mid-air.mp4';
-    } else {
-      fileName = 'idle.mp4';
+    if (typeof window.updateCharacterMedia === 'function') {
+      window.updateCharacterMedia('p1', 'IDLE');
+      window.updateCharacterMedia('p2', 'IDLE');
     }
-  } else if (stateType === 'VICTORY' || stateType === 'victory') {
-    fileName = Math.random() < 0.5 ? 'victory.mp4' : 'victory2.mp4';
-  } else if (stateType === 'KO' || stateType === 'ko') {
-    fileName = 'ko.mp4';
-  }
 
-  if (!fileName.endsWith('.mp4') && !fileName.endsWith('.webm')) {
-    fileName += '.mp4';
-  }
-
-  const moves = playerKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
-  const currentMove = moves ? Object.values(moves).find(m => m && m.video === fileName) : null;
-
-  videoEl.style.transform = getTransformFlip(player, playerKey, currentMove);
-
-  const isMirrorMatch = window.gameState.p1 && window.gameState.p2 && (window.gameState.p1.id === window.gameState.p2.id);
-
-  videoEl.muted = true;
-  videoEl.playsInline = true;
-  videoEl.setAttribute('playsinline', '');
-  videoEl.setAttribute('webkit-playsinline', '');
-
-  videoEl.classList.toggle('p2-mirror-palette', playerKey === 'p2' && isMirrorMatch);
-
-  const isLoopingState = ['idle.mp4', 'mid-air.mp4', 'faint.mp4'].includes(fileName);
-  videoEl.loop = isLoopingState;
-
-  const riderId = player.id || 'ichigo';
-  const rawUrl = `assets/videos/${riderId}/${fileName}`;
-  const videoUrl = (window.gameState.videoCache && window.gameState.videoCache[rawUrl]) || rawUrl;
-
-  if (videoEl.dataset.currentFile !== videoUrl) {
-    videoEl.dataset.currentFile = videoUrl;
-    videoEl.src = videoUrl;
-    videoEl.load();
-    const playPromise = videoEl.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(() => {});
+    // Launch round timer & inputs
+    if (typeof window.launchRoundTimer === 'function') {
+      window.launchRoundTimer();
     }
-  } else if (videoEl.paused && isLoopingState && !videoEl.ended) {
-    videoEl.play().catch(() => {});
-  }
-
-  if (spriteEl) spriteEl.hidden = true;
-  videoEl.hidden = false;
+  }, 1000);
 }
 
-window.unlockMobileVideos = unlockMobileVideos;
-window.getTransformFlip = getTransformFlip;
-window.preloadRiderVideos = preloadRiderVideos;
-window.playCenterVideo = playCenterVideo;
-window.hideCenterScreen = hideCenterScreen;
-window.updateCharacterMedia = updateCharacterMedia;
+/**
+ * Resets current combat state and returns player to the character selection screen.
+ */
+function returnToCharSelect() {
+  if (window.gameState) {
+    window.gameState.roundPhase = 'IDLE';
+    window.gameState.canContinueFromGameOver = false;
+    if (window.gameState.timerInterval) {
+      clearInterval(window.gameState.timerInterval);
+    }
+  }
+
+  if (typeof window.stopBattleBGM === 'function') window.stopBattleBGM();
+  if (typeof window.playSelectionBGM === 'function') window.playSelectionBGM();
+
+  const battleScreen = document.getElementById('battle-screen');
+  const selectScreen = document.getElementById('vs-select-screen');
+  const battleMsg = document.getElementById('battle-message');
+  const actionMsg = document.getElementById('center-action-label');
+
+  if (battleScreen) battleScreen.hidden = true;
+  if (battleMsg) battleMsg.hidden = true;
+  if (actionMsg) actionMsg.hidden = true;
+  if (selectScreen) selectScreen.hidden = false;
+
+  if (window.vsSelectionState) {
+    window.vsSelectionState.step = 1;
+    if (typeof window.updateSelectionUI === 'function') {
+      window.updateSelectionUI();
+    }
+  }
+
+  document.querySelectorAll('.damage-popup').forEach(el => el.remove());
+}
+
+// Global Exports
+window.startBattle = startBattle;
+window.returnToCharSelect = returnToCharSelect;
+window.returnToSelectScreen = returnToCharSelect;
