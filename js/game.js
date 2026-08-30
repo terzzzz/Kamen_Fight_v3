@@ -34,51 +34,6 @@ if (!window.gameState) {
 }
 
 /**
- * Mobile-safe character media renderer for battle viewports.
- */
-function updateCharacterMedia(slotKey, mediaType = 'IDLE', overrideSrc = null) {
-  const isP1 = slotKey === 'p1';
-  const boxId = isP1 ? 'p1-box' : 'p2-box';
-  const boxEl = document.getElementById(boxId);
-  if (!boxEl) return;
-
-  const playerObj = isP1 ? window.gameState.p1 : window.gameState.p2;
-  const riderId = playerObj?.id || (isP1 ? 'ichigo' : 'nigo');
-
-  let videoEl = boxEl.querySelector('video');
-  if (!videoEl) {
-    videoEl = document.createElement('video');
-    boxEl.appendChild(videoEl);
-  }
-
-  // Force WebKit / iOS Safari Mobile Compatibility Flags
-  videoEl.muted = true;
-  videoEl.defaultMuted = true;
-  videoEl.autoplay = true;
-  videoEl.loop = true;
-  videoEl.setAttribute('muted', '');
-  videoEl.setAttribute('playsinline', '');
-  videoEl.setAttribute('webkit-playsinline', '');
-  videoEl.style.width = '100%';
-  videoEl.style.height = '100%';
-  videoEl.style.objectFit = 'contain';
-
-  const srcPath = overrideSrc || `assets/videos/${riderId}_idle.mp4`;
-
-  if (videoEl.src !== srcPath && !videoEl.src.endsWith(srcPath)) {
-    videoEl.src = srcPath;
-    videoEl.load();
-  }
-
-  const playPromise = videoEl.play();
-  if (playPromise !== undefined) {
-    playPromise.catch(err => {
-      console.warn(`Video play suppressed for ${slotKey}:`, err);
-    });
-  }
-}
-
-/**
  * Launches a new match given a selection configuration object.
  */
 async function startBattle(matchConfig) {
@@ -179,8 +134,10 @@ async function startBattle(matchConfig) {
     } catch (e) { console.warn(e); }
 
     try {
-      updateCharacterMedia('p1', 'IDLE');
-      updateCharacterMedia('p2', 'IDLE');
+      if (typeof window.updateCharacterMedia === 'function') {
+        window.updateCharacterMedia('p1', 'IDLE');
+        window.updateCharacterMedia('p2', 'IDLE');
+      }
     } catch (e) { console.warn(e); }
 
     if (typeof window.launchRoundTimer === 'function') {
@@ -222,7 +179,6 @@ function returnToCharSelect() {
 }
 
 // Global Exports
-window.updateCharacterMedia = updateCharacterMedia;
 window.startBattle = startBattle;
 window.returnToCharSelect = returnToCharSelect;
 window.returnToSelectScreen = returnToCharSelect;
