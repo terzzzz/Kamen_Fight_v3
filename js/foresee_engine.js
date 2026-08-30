@@ -31,8 +31,8 @@
       MAX_CHI: 16
     };
 
-    const selfMove = selfMovesData[selfMoveKey] || { name: 'Idle', type: 'IDLE', baseDamage: 0, chiCost: 0 };
-    const oppMove = oppMovesData[oppMoveKey] || { name: 'Idle', type: 'IDLE', baseDamage: 0, chiCost: 0 };
+    const selfMove = (selfMovesData && selfMovesData[selfMoveKey]) || { name: 'Idle', type: 'IDLE', baseDamage: 0, chiCost: 0 };
+    const oppMove = (oppMovesData && oppMovesData[oppMoveKey]) || { name: 'Idle', type: 'IDLE', baseDamage: 0, chiCost: 0 };
 
     nextSelf.chi = Math.max(0, nextSelf.chi - (selfMove.chiCost || 0));
     nextOpp.chi = Math.max(0, nextOpp.chi - (oppMove.chiCost || 0));
@@ -261,7 +261,7 @@
     const selfValid = getValidMoves(cpuPlayer, selfMovesData);
     let oppValid = getValidMoves(opponentPlayer, oppMovesData);
 
-    if (isOpponentLocked && lockedOpponentMoveKey && oppMovesData[lockedOpponentMoveKey]) {
+    if (isOpponentLocked && lockedOpponentMoveKey && oppMovesData && oppMovesData[lockedOpponentMoveKey]) {
       oppValid = [lockedOpponentMoveKey];
     }
 
