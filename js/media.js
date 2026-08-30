@@ -3,7 +3,7 @@
  * Path: js/media.js
  */
 
-let mobileVideosUnlocked = false;
+var mobileVideosUnlocked = window.mobileVideosUnlocked || false;
 
 // iOS & Mobile Autoplay Constraints Unlocker
 function unlockMobileVideos() {
@@ -25,6 +25,7 @@ function unlockMobileVideos() {
   });
 
   mobileVideosUnlocked = true;
+  window.mobileVideosUnlocked = true;
 }
 
 // Orientation Resolver (P1 faces Right, P2 faces Left)
