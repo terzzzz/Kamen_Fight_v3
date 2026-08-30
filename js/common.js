@@ -8,7 +8,7 @@ window.COMBAT_RULES = {
   HIT_BUILDUP: 25,
   ROUND_RECOVERY: 13,
   FAINT_PENALTY_CHI_GUARD: 15,
-  FAINT_PENALTY_STANDARD_GUARD: 25,
+  FAINT_PENALTY_STANDARD_GUARD: 12,
   FAINT_PENALTY_IDLE_GUARD: 5,
   STARTING_CHI: 8,
   MAX_CHI: 16,
@@ -20,7 +20,8 @@ window.GAME_CONFIG = {
   CHARGE_TIME_REQUIRED: 2.5,
   LATE_EXTENSION_BONUS: 1.0,
   LATE_DECISION_THRESHOLD: 7.0,
-  HARD_CPU_HP_MULTIPLIER: 1.30
+  HARD_CPU_HP_MULTIPLIER: 1.10,
+  HARD_CPU_DMG_MULTIPLIER: 1.10
 };
 
 function getOpponentMovesData(opponentPlayer) {
@@ -53,25 +54,3 @@ function getMatchTimingConfig() {
 
   return { baseRoundWindow, chargeTimeRequired, extensionBonus, lateThreshold };
 }
-
-/**
- * Balanced AI Profiles
- */
-window.RIDER_AI_PROFILES = {
-  ichigo: {
-    weights: { W_LP: 1.0, W_CHI: 8.0, W_FAINT: 2.0 },
-    dChargeRange: [88, 95]
-  },
-  nigo: {
-    weights: { W_LP: 1.4, W_CHI: 6.0, W_FAINT: 1.5 },
-    dChargeRange: [85, 92]
-  },
-  v3: {
-    weights: { W_LP: 1.1, W_CHI: 10.0, W_FAINT: 2.5 },
-    dChargeRange: [85, 95]
-  },
-  riderman: {
-    weights: { W_LP: 1.2, W_CHI: 9.0, W_FAINT: 2.2 },
-    dChargeRange: [85, 95]
-  }
-};
