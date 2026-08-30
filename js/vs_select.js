@@ -3,9 +3,6 @@
  * Path: js/vs_select.js
  */
 
-// ==========================================================================
-// 1. GLOBAL STATE & ROSTER INITIALIZATION
-// ==========================================================================
 window.selectionBGM = window.selectionBGM || null;
 window.battleBGM = window.battleBGM || null;
 window.currentVolume = typeof window.currentVolume === 'number' ? window.currentVolume : 0.5;
@@ -17,7 +14,7 @@ window.AVAILABLE_RIDERS = window.AVAILABLE_RIDERS || [
 ];
 
 window.vsSelectionState = window.vsSelectionState || {
-  step: 1, // 1: Select P1, 2: Select P2, 3: Ready
+  step: 1,
   p1Index: 0,
   p1IsCPU: false,
   p1Difficulty: 'normal',
@@ -26,9 +23,6 @@ window.vsSelectionState = window.vsSelectionState || {
   p2Difficulty: 'normal'
 };
 
-// ==========================================================================
-// 2. BGM AUDIO CONTROLLERS
-// ==========================================================================
 window.changeBGMVolume = function(val) {
   window.currentVolume = parseFloat(val);
   if (window.selectionBGM) window.selectionBGM.volume = window.currentVolume;
@@ -45,9 +39,7 @@ window.playSelectionBGM = function() {
 
     const playPromise = window.selectionBGM.play();
     if (playPromise !== undefined) {
-      playPromise.catch(() => {
-        console.warn("Mobile autoplay restricted. BGM will unlock on first tap.");
-      });
+      playPromise.catch(() => {});
     }
   } catch (e) {
     console.warn("Audio load error:", e);
@@ -87,9 +79,6 @@ window.stopBattleBGM = function() {
   }
 };
 
-// ==========================================================================
-// 3. SELECTION NAVIGATION & BUTTON HANDLERS
-// ==========================================================================
 window.cycleRider = function(playerKey, direction) {
   const riders = window.AVAILABLE_RIDERS;
   const state = window.vsSelectionState;
@@ -277,9 +266,6 @@ window.updateSelectionUI = function() {
   }
 };
 
-// ==========================================================================
-// 4. BATCH SIMULATOR & BATTLE LAUNCHERS
-// ==========================================================================
 window.handleSimulateMatches = function() {
   if (typeof window.runBatchSimulation !== 'function') {
     alert('Simulation engine (js/simulator.js) is not loaded!');
@@ -358,7 +344,10 @@ window.validateAndStartMatch = function() {
   window.playBattleBGM();
 
   const selectScreen = document.getElementById('vs-select-screen');
+  const battleScreen = document.getElementById('battle-screen');
+
   if (selectScreen) selectScreen.hidden = true;
+  if (battleScreen) battleScreen.hidden = false; // Ensures battle HUD is revealed
 
   const riders = window.AVAILABLE_RIDERS;
   const state = window.vsSelectionState;
@@ -377,7 +366,6 @@ window.validateAndStartMatch = function() {
   }
 };
 
-// DOM Event Bindings
 document.addEventListener('DOMContentLoaded', async () => {
   const selectScreen = document.getElementById('vs-select-screen');
   const battleScreen = document.getElementById('battle-screen');
