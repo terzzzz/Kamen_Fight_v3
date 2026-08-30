@@ -6,12 +6,13 @@
 // ==========================================================================
 // 1. BGM AUDIO CONTROLLERS
 // ==========================================================================
-let selectionBGM = null;
-let battleBGM = null;
-let currentVolume = 0.5;
+var selectionBGM = window.selectionBGM || null;
+var battleBGM = window.battleBGM || null;
+var currentVolume = typeof window.currentVolume === 'number' ? window.currentVolume : 0.5;
 
 function changeBGMVolume(val) {
   currentVolume = parseFloat(val);
+  window.currentVolume = currentVolume;
   if (selectionBGM) selectionBGM.volume = currentVolume;
   if (battleBGM) battleBGM.volume = currentVolume;
 }
@@ -23,6 +24,7 @@ function playSelectionBGM() {
     selectionBGM = new Audio('assets/sounds/matchup.mp3');
     selectionBGM.loop = true;
     selectionBGM.volume = currentVolume;
+    window.selectionBGM = selectionBGM;
 
     const playPromise = selectionBGM.play();
     if (playPromise !== undefined) {
@@ -40,6 +42,7 @@ function stopSelectionBGM() {
     selectionBGM.pause();
     selectionBGM.currentTime = 0;
     selectionBGM = null;
+    window.selectionBGM = null;
   }
 }
 
@@ -50,6 +53,7 @@ function playBattleBGM() {
     battleBGM = new Audio('assets/sounds/matchup1.mp3');
     battleBGM.loop = true;
     battleBGM.volume = currentVolume;
+    window.battleBGM = battleBGM;
 
     const playPromise = battleBGM.play();
     if (playPromise !== undefined) {
@@ -65,36 +69,50 @@ function stopBattleBGM() {
     battleBGM.pause();
     battleBGM.currentTime = 0;
     battleBGM = null;
+    window.battleBGM = null;
   }
 }
 
 // ==========================================================================
 // 2. CHARACTER SELECTION STATE & ROSTER STORAGE
 // ==========================================================================
-let AVAILABLE_RIDERS = [
-  { id: 'ichigo', name: 'Kamen Rider Ichigo', icon: 'assets/images/icons/ichigo.png', maxLp: 2300 },
-  { id: 'nigo', name: 'Kamen Rider Nigo', icon: 'assets/images/icons/nigo.png', maxLp: 2500 },
-  { id: 'v3', name: 'Kamen Rider V3', icon: 'assets/images/icons/v3.png', maxLp: 2400 }
-];
+if (typeof window.AVAILABLE_RIDERS === 'undefined') {
+  window.AVAILABLE_RIDERS = [
+    { id: 'ichigo', name: 'Kamen Rider Ichigo', icon: 'assets/images/icons/ichigo.png', maxLp: 2300 },
+    { id: 'nigo', name: 'Kamen Rider Nigo', icon: 'assets/images/icons/nigo.png', maxLp: 2500 },
+    { id: 'v3', name: 'Kamen Rider V3', icon: 'assets/images/icons/v3.png', maxLp: 2400 }
+  ];
+}
+var AVAILABLE_RIDERS = window.AVAILABLE_RIDERS;
 
-let vsSelectionState = {
-  step: 1, // 1: Select P1, 2: Select P2, 3: Ready
-  p1Index: 0,
-  p1IsCPU: false,
-  p1Difficulty: 'normal',
-  p2Index: 1,
-  p2IsCPU: true,
-  p2Difficulty: 'normal'
-};
+if (typeof window.vsSelectionState === 'undefined') {
+  window.vsSelectionState = {
+    step: 1, // 1: Select P1, 2: Select P2, 3: Ready
+    p1Index: 0,
+    p1IsCPU: false,
+    p1Difficulty: 'normal',
+    p2Index: 1,
+    p2IsCPU: true,
+    p2Difficulty: 'normal'
+  };
+}
+var vsSelectionState = window.vsSelectionState;
 
 // Global Initialization, Mobile Audio Unlock & Simulation Bindings
 document.addEventListener('DOMContentLoaded', async () => {
+  // Ensure selection screen is visible on boot
+  const selectScreen = document.getElementById('vs-select-screen');
+  const battleScreen = document.getElementById('battle-screen');
+  if (selectScreen) selectScreen.hidden = false;
+  if (battleScreen) battleScreen.hidden = true;
+
   try {
     const res = await fetch('data/riders.json');
     if (res.ok) {
       const allRiders = await res.json();
       const activeRiders = allRiders.filter(r => r.active === true);
       if (activeRiders.length > 0) {
+        window.AVAILABLE_RIDERS = activeRiders;
         AVAILABLE_RIDERS = activeRiders;
       }
     }
@@ -318,7 +336,7 @@ function updateSelectionUI() {
 // 3. MATCH SIMULATOR & MATCH START HANDLERS
 // ==========================================================================
 function handleSimulateMatches() {
-  if (typeof runBatchSimulation !== 'function') {
+  if (typeof window.runBatchSimulation !== 'function') {
     alert('Simulation engine (js/simulator.js) is not loaded!');
     return;
   }
@@ -339,7 +357,7 @@ function handleSimulateMatches() {
   if (modal) modal.hidden = false;
 
   setTimeout(() => {
-    const res = runBatchSimulation(p1Rider, p2Rider, matchCount, difficulty);
+    const res = window.runBatchSimulation(p1Rider, p2Rider, matchCount, difficulty);
 
     if (resultsBody) {
       const overallWinner = res.p1Wins > res.p2Wins ? res.p1Name : (res.p2Wins > res.p1Wins ? res.p2Name : 'TIE MATCH');
@@ -404,8 +422,8 @@ function validateAndStartMatch() {
     p2Difficulty: vsSelectionState.p2Difficulty
   };
 
-  if (typeof startBattle === 'function') {
-    startBattle(matchConfig);
+  if (typeof window.startBattle === 'function') {
+    window.startBattle(matchConfig);
   }
 }
 
