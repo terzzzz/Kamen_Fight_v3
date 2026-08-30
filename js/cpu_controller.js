@@ -4,17 +4,18 @@
  */
 
 function setUniversalChargeTarget(cpuPlayer, moveKey, difficulty, profile) {
+  if (!cpuPlayer) return;
+
   let target = 100;
+  const keyStr = typeof moveKey === 'string' ? moveKey : 'D+J';
 
-  if (!moveKey) moveKey = 'D+J';
-
-  if (moveKey.startsWith('A+')) {
+  if (keyStr.startsWith('A+')) {
     target = 15;
   } else if (difficulty === 'easy') {
     target = Math.floor(Math.random() * 16) + 65;
   } else if (difficulty === 'hard') {
     target = Math.floor(Math.random() * 9) + 92;
-  } else if (moveKey.startsWith('D')) {
+  } else if (keyStr.startsWith('D')) {
     target = Math.floor(Math.random() * 11) + 85;
   } else {
     target = Math.floor(Math.random() * 11) + 85;
