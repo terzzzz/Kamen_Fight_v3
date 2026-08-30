@@ -3,7 +3,7 @@
  * Path: js/combat_engine.js
  */
 
-const COMBAT_RULES = window.COMBAT_RULES || {
+window.COMBAT_RULES = window.COMBAT_RULES || {
   FAINT_THRESHOLD: 100,
   HIT_BUILDUP: 25,
   ROUND_RECOVERY: 13,
@@ -15,7 +15,7 @@ const COMBAT_RULES = window.COMBAT_RULES || {
   OFFENSIVE_TYPES: ['MELEE', 'PROJECTILE', 'SPECIAL', 'FINISHER', 'PHYSICAL']
 };
 
-const GAME_CONFIG = window.GAME_CONFIG || {
+window.GAME_CONFIG = window.GAME_CONFIG || {
   ROUND_TIME_LIMIT: 8.0,
   CHARGE_TIME_REQUIRED: 2.5,
   LATE_EXTENSION_BONUS: 1.0,
@@ -40,7 +40,7 @@ var FALLBACK_ICHIGO_MOVES = window.FALLBACK_ICHIGO_MOVES || {
   "W+L": { name: "Typhoon Emission", type: "UTILITY", chiCost: 1, baseDamage: 0, hitChance: 100, video: "mind.mp4", faintRecovery: 15 },
   "D+J": { name: "Standard Punch", type: "PHYSICAL", chiCost: 0, baseDamage: 66, hitChance: 85, video: "punch.mp4" },
   "D+K": { name: "Standard Kick", type: "PHYSICAL", chiCost: 0, baseDamage: 88, hitChance: 88, video: "kick.mp4" },
-  "D+L": { "name": "Combo Punch", type: "PHYSICAL", chiCost: 1, baseDamage: 132, hitChance: 82, video: "combo_punch.mp4" },
+  "D+L": { name: "Combo Punch", type: "PHYSICAL", chiCost: 1, baseDamage: 132, hitChance: 82, video: "combo_punch.mp4" },
   "D+I": { name: "Combo Kick", type: "PHYSICAL", chiCost: 1, baseDamage: 121, hitChance: 85, video: "combo_kick.mp4", unmirrored: true },
   "S+J": { name: "Rider Power Chop", type: "SPECIAL", chiCost: 3, baseDamage: 400, hitChance: 80, video: "power_chop.mp4" },
   "S+K": { name: "Rider Head Crusher", type: "SPECIAL", chiCost: 4, baseDamage: 480, hitChance: 75, video: "head_crusher.mp4" },
@@ -51,6 +51,27 @@ var FALLBACK_ICHIGO_MOVES = window.FALLBACK_ICHIGO_MOVES || {
   "A+K": { name: "Mid Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" },
   "A+L": { name: "Side Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" }
 };
+
+// CPU Visual Button Press Feedback Simulator Hook
+if (typeof window.simulateCPUButtonPress !== 'function') {
+  window.simulateCPUButtonPress = function(moveKey, slotKey) {
+    if (!moveKey || moveKey === 'DO_NOTHING') return;
+    const parts = moveKey.split('+');
+    if (parts.length === 2) {
+      const prefix = slotKey === 'p1' ? 'key-' : 'p2-key-';
+      const dirBtn = document.getElementById(`${prefix}${parts[0]}`);
+      const actBtn = document.getElementById(`${prefix}${parts[1]}`);
+      if (dirBtn) {
+        dirBtn.classList.add('active');
+        setTimeout(() => dirBtn.classList.remove('active'), 300);
+      }
+      if (actBtn) {
+        actBtn.classList.add('active');
+        setTimeout(() => actBtn.classList.remove('active'), 300);
+      }
+    }
+  };
+}
 
 /* --- VISUAL EFFECTS & HUD HELPERS --- */
 
@@ -193,6 +214,12 @@ function updateHUD() {
 
   const turnDisp = document.getElementById('turn-display');
   if (turnDisp) turnDisp.textContent = `ROUND ${window.gameState.roundCounter}`;
+}
+
+function getMoveForPlayer(slotKey, moveKey) {
+  if (!moveKey || moveKey === 'DO_NOTHING') return DO_NOTHING_MOVE;
+  const moves = slotKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
+  return (moves && moves[moveKey]) ? moves[moveKey] : DO_NOTHING_MOVE;
 }
 
 /* --- COMBAT MATH & FAINT CALCULATIONS --- */
@@ -471,9 +498,8 @@ async function executeTurnResolutionPhase() {
     window.simulateCPUButtonPress(p2MoveKey, 'p2');
   }
 
-  const defaultMove = { name: 'Do Nothing', type: 'IDLE', baseDamage: 0, chiCost: 0 };
-  let p1Move = (typeof window.getMoveForPlayer === 'function' ? window.getMoveForPlayer('p1', p1MoveKey) : null) || defaultMove;
-  let p2Move = (typeof window.getMoveForPlayer === 'function' ? window.getMoveForPlayer('p2', p2MoveKey) : null) || defaultMove;
+  let p1Move = getMoveForPlayer('p1', p1MoveKey);
+  let p2Move = getMoveForPlayer('p2', p2MoveKey);
 
   const battleMsg = document.getElementById('battle-message');
   if (battleMsg) {
@@ -851,7 +877,6 @@ async function executeTurnResolutionPhase() {
 
   if (window.gameState.p1.lp > 0 && window.gameState.p2.lp > 0) {
     window.gameState.roundCounter++;
-    if (typeof window.resetRoundState === 'function') window.resetRoundState();
     if (typeof window.launchRoundTimer === 'function') window.launchRoundTimer();
 
     if (window.gameState.p1.isCPU && window.gameState.p2.isCPU) {
@@ -908,3 +933,4 @@ async function executeTurnResolutionPhase() {
 window.executeTurnResolutionPhase = executeTurnResolutionPhase;
 window.applyFaintBuildUp = applyFaintBuildUp;
 window.resolveAttack = resolveAttack;
+window.getMoveForPlayer = getMoveForPlayer;
