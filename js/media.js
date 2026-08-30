@@ -121,6 +121,7 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
       centerVid.removeEventListener('ended', cleanUpAndResolve);
       centerVid.removeEventListener('error', cleanUpAndResolve);
 
+      centerVid.pause();
       centerBox.hidden = true;
       centerBox.style.display = 'none';
       if (actionLabel) actionLabel.hidden = true;
