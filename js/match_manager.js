@@ -10,18 +10,25 @@ function updateChargeProgress(playerKey = 'p1') {
   const inputState = isP1 ? window.gameState.input : window.gameState.p2Input;
   if (!inputState || !inputState.heldDirection) return;
 
-  const chargeTimes = window.CHARGE_TIMES || { W: 2000, A: 1500, S: 2500, D: 2000 };
-  const duration = chargeTimes[inputState.heldDirection] || 2000;
+  const chargeTimes = window.CHARGE_TIMES || { W: 3500, A: 2200, S: 4200, D: 3000 };
+  const duration = chargeTimes[inputState.heldDirection] || 3000;
   const elapsed = Date.now() - inputState.chargeStartTime;
   inputState.currentPercent = Math.min(100, Math.floor((elapsed / duration) * 100));
 
-  const fillEl = document.getElementById(`${playerKey}-charge-fill`) || document.getElementById('charge-fill');
+  // 1. Update Player Box Charge Fill
+  const fillEl = document.getElementById(`${playerKey}-charge-fill`);
   if (fillEl) {
     fillEl.style.width = `${inputState.currentPercent}%`;
-    fillEl.textContent = `${inputState.currentPercent}%`;
   }
 
-  const statusEl = document.getElementById(`${playerKey}-charge-status-display`) || document.getElementById('charge-status');
+  // 2. Update Overlay Text Span
+  const textEl = document.getElementById(`${playerKey}-charge-text`);
+  if (textEl) {
+    textEl.textContent = `CHARGING [${inputState.heldDirection}]: ${inputState.currentPercent}%`;
+  }
+
+  // 3. Update Control Panel Status Display
+  const statusEl = document.getElementById(isP1 ? 'charge-status-display' : 'p2-charge-status-display');
   if (statusEl) {
     statusEl.textContent = `CHARGING [${inputState.heldDirection}]: ${inputState.currentPercent}%`;
     statusEl.style.color = inputState.currentPercent >= 100 ? '#00ffcc' : '#ffcc00';
@@ -62,14 +69,21 @@ function resetTurnInputState() {
   });
 
   ['p1', 'p2'].forEach(slot => {
-    const fillEl = document.getElementById(`${slot}-charge-fill`) || document.getElementById('charge-fill');
-    if (fillEl) {
-      fillEl.style.width = '0%';
-      fillEl.textContent = '0%';
-    }
+    const fillEl = document.getElementById(`${slot}-charge-fill`);
+    if (fillEl) fillEl.style.width = '0%';
+
+    const textEl = document.getElementById(`${slot}-charge-text`);
+    if (textEl) textEl.textContent = 'READY';
+
     const flagEl = document.getElementById(`${slot}-action-flag`);
     if (flagEl) flagEl.hidden = true;
   });
+
+  const statusEl = document.getElementById('charge-status-display');
+  if (statusEl) {
+    statusEl.textContent = 'TAP DIRECTION TO CHARGE';
+    statusEl.style.color = '#00ffcc';
+  }
 }
 
 function unlockMobileVideos() {
