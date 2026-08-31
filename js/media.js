@@ -5,11 +5,13 @@
 
 // Orientation Resolver (P1 faces Right, P2 faces Left)
 function getTransformFlip(player, playerKey, moveObj = null) {
-  if (!player) return 'scaleX(1)';
+  // Derive fallback rider ID and default facing if player object is uninitialized
+  const riderId = (player && player.id) ? player.id : (playerKey === 'p1' ? 'ichigo' : 'nigo');
+  const defaultFacing = (riderId === 'nigo') ? 'right' : 'left';
 
   const nativeFacing = (moveObj && moveObj.sourceFacing) 
     ? moveObj.sourceFacing 
-    : (player.sourceFacing || (player.id === 'nigo' ? 'right' : 'left'));
+    : ((player && player.sourceFacing) ? player.sourceFacing : defaultFacing);
 
   let shouldFlip = false;
   if (nativeFacing === 'left') {
@@ -191,4 +193,3 @@ window.updateCharacterMedia = updateCharacterMedia;
 window.playCenterVideo = playCenterVideo;
 window.hideCenterScreen = hideCenterScreen;
 window.unlockMobileVideos = unlockMobileVideos;
-  
