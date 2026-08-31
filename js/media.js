@@ -191,3 +191,4 @@ window.updateCharacterMedia = updateCharacterMedia;
 window.playCenterVideo = playCenterVideo;
 window.hideCenterScreen = hideCenterScreen;
 window.unlockMobileVideos = unlockMobileVideos;
+  
