@@ -1,6 +1,7 @@
 /**
  * Main AI Memory Manager, Habit Tracker, Rider Profiles & Decision Engine
  * Path: js/ai.js
+ * Updated with exact Expected Value (EV) Guard and Priority Rules
  */
 
 window.RIDER_AI_PROFILES = {
@@ -131,7 +132,7 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
     return moveKeys[Math.floor(Math.random() * moveKeys.length)];
   }
 
-  // HARD DIFFICULTY: Try ForeseeEngine Minimax Tree First
+  // HARD DIFFICULTY: Minimax Tree Simulation Search
   if (window.ForeseeEngine && typeof window.ForeseeEngine.getBestMove === 'function') {
     try {
       const bestForeseeMove = window.ForeseeEngine.getBestMove(cpuPlayer, opponentPlayer, availableMoves, riderProfile, 3);
@@ -139,11 +140,11 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
         return bestForeseeMove;
       }
     } catch (err) {
-      console.warn("ForeseeEngine exception, falling back to heuristic evaluation:", err);
+      console.warn("ForeseeEngine exception, falling back to heuristic EV evaluation:", err);
     }
   }
 
-  // HARD DIFFICULTY: Fallback Heuristic Evaluator
+  // HARD DIFFICULTY: Fallback Heuristic EV Evaluator
   if (!cpuPlayer.memory) {
     cpuPlayer.memory = {
       recentMoves: [],
@@ -177,7 +178,7 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
 
     let evalDamage = m.baseDamage || 0;
     let evalHitChance = m.hitChance || 80;
-    let evalFaintDmg = m.baseFaintDamage || 0;
+    let evalFaintDmg = m.baseFaintDamage || 25;
 
     if (currentChi > 14) {
       evalDamage *= 1.20;
@@ -258,7 +259,6 @@ window.selectCPUMoveAndCharge = function(cpuPlayer, opponentPlayer, slotKey) {
   return { moveKey: chosenMoveKey, targetChargePct: targetChargePct };
 };
 
-// Global Helper Alias for Match Manager & Engine Calls
 window.getCPUMoveChoice = function(cpuPlayer, opponentPlayer, slotKey) {
   const result = window.selectCPUMoveAndCharge(cpuPlayer, opponentPlayer, slotKey);
   if (cpuPlayer) {
