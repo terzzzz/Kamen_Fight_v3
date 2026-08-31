@@ -211,6 +211,9 @@ window.updateSelectionUI = function() {
 
   const simBtn = document.getElementById('btn-simulate-matches');
 
+  // Keep simulation button available on all character selection steps
+  if (simBtn) simBtn.disabled = false;
+
   if (state.step === 1) {
     if (headerText) headerText.textContent = 'STEP 1: SELECT PLAYER 1 RIDER';
     if (p1Card) p1Card.className = 'rider-card active-slot';
@@ -228,7 +231,6 @@ window.updateSelectionUI = function() {
     }
     if (startBtn) startBtn.hidden = true;
     if (backBtn) backBtn.disabled = true;
-    if (simBtn) simBtn.disabled = true;
 
   } else if (state.step === 2) {
     if (headerText) headerText.textContent = 'STEP 2: SELECT PLAYER 2 RIDER';
@@ -247,7 +249,6 @@ window.updateSelectionUI = function() {
     }
     if (startBtn) startBtn.hidden = true;
     if (backBtn) backBtn.disabled = false;
-    if (simBtn) simBtn.disabled = false;
 
   } else if (state.step === 3) {
     if (headerText) headerText.textContent = 'READY FOR BATTLE!';
@@ -265,11 +266,12 @@ window.updateSelectionUI = function() {
       startBtn.disabled = false;
     }
     if (backBtn) backBtn.disabled = false;
-    if (simBtn) simBtn.disabled = false;
   }
 };
 
-window.handleSimulateMatches = function() {
+window.handleSimulateMatches = function(e) {
+  if (e && e.preventDefault) e.preventDefault();
+
   if (typeof window.runBatchSimulation !== 'function') {
     alert('Simulation engine (js/simulator.js) is not loaded!');
     return;
@@ -288,11 +290,13 @@ window.handleSimulateMatches = function() {
   const resultsBody = document.getElementById('sim-results-body');
   const modal = document.getElementById('sim-modal');
 
+  // Immediately render loading UI and open modal on character selection screen
   if (resultsBody) {
-    resultsBody.innerHTML = `<p class="sim-loading" style="color: #00ffcc; text-align: center; font-family: monospace;">SIMULATING ${matchCount} MATCHES... PLEASE WAIT...</p>`;
+    resultsBody.innerHTML = `<p class="sim-loading" style="color: #00ffcc; text-align: center; font-family: monospace; padding: 20px;">SIMULATING ${matchCount} MATCHES... PLEASE WAIT...</p>`;
   }
   if (modal) modal.hidden = false;
 
+  // Defer simulation execution slightly to allow DOM modal render
   setTimeout(async () => {
     try {
       const res = await window.runBatchSimulation(p1Rider, p2Rider, matchCount, p1Diff, p2Diff);
