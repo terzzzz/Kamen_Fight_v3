@@ -3,9 +3,8 @@
  * Path: js/media.js
  */
 
-// Orientation Resolver (P1 faces Right, P2 faces Left)
+// Orientation Resolver (Inverted facing flip logic for P1 / P2)
 function getTransformFlip(player, playerKey, moveObj = null) {
-  // Derive fallback rider ID and default facing if player object is uninitialized
   const riderId = (player && player.id) ? player.id : (playerKey === 'p1' ? 'ichigo' : 'nigo');
   const defaultFacing = (riderId === 'nigo') ? 'right' : 'left';
 
@@ -15,9 +14,9 @@ function getTransformFlip(player, playerKey, moveObj = null) {
 
   let shouldFlip = false;
   if (nativeFacing === 'left') {
-    shouldFlip = (playerKey === 'p1');
-  } else {
     shouldFlip = (playerKey === 'p2');
+  } else {
+    shouldFlip = (playerKey === 'p1');
   }
 
   if (moveObj && moveObj.unmirrored) {
@@ -136,7 +135,6 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
       if (maxDurationMs) {
         fallbackTimer = setTimeout(cleanUpAndResolve, maxDurationMs);
       } else if (centerVid.duration && !isNaN(centerVid.duration) && centerVid.duration > 0) {
-        // Allow full video playback + 1000ms safety buffer before forcing cleanup
         fallbackTimer = setTimeout(cleanUpAndResolve, Math.ceil(centerVid.duration * 1000) + 1000);
       } else {
         fallbackTimer = setTimeout(cleanUpAndResolve, 8000);
@@ -158,7 +156,6 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
       });
     }
 
-    // Default safety timer before metadata loads (8s generously accommodates long special attacks)
     fallbackTimer = setTimeout(cleanUpAndResolve, maxDurationMs || 8000);
   });
 }
