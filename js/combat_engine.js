@@ -338,21 +338,32 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
       if (!atkMove.unblockable && Math.random() * 100 < effectiveGuardChance) {
         guardSuccess = true;
         damageRatio = 0.0;
-      }
-    } else if (atkButton && defKeyStr === `A+${atkButton}`) {
-      isMatchingGuard = true;
-      if (Math.random() * 100 < effectiveGuardChance) {
-        guardSuccess = true;
-        damageRatio = 0.30;
         chiGained = 2;
       } else {
-        guardSuccess = false;
-        damageRatio = 1.0;
+        guardSuccess = true; // Special Guard prevents action interruption even on bad roll
+        damageRatio = 0.50; // Takes 50% damage on bad roll
+        chiGained = 1;
+      }
+    } else if (atkButton && defKeyStr === `A+${atkButton}`) {
+      // MATCHED DIRECTIONAL GUARD
+      isMatchingGuard = true;
+      guardSuccess = true; // Prevents interruption on both Good and Bad matched scenarios
+
+      if (Math.random() * 100 < effectiveGuardChance) {
+        // GOOD SCENARIO: Takes 25% damage (75% reduced), +4 Chi Reward
+        damageRatio = 0.25;
+        chiGained = 4;
+      } else {
+        // BAD SCENARIO: Takes 70% damage (30% reduced), +2 Chi Reward
+        damageRatio = 0.70;
+        chiGained = 2;
       }
     } else {
+      // MISMATCHED GUARD BUTTON: Guard Failure (Full 100% damage, Interrupted, 0 Chi)
       isMatchingGuard = false;
       guardSuccess = false;
       damageRatio = 1.0;
+      chiGained = 0;
     }
   }
 
