@@ -15,13 +15,13 @@ function updateChargeProgress(playerKey = 'p1') {
   const elapsed = Date.now() - inputState.chargeStartTime;
   inputState.currentPercent = Math.min(100, Math.floor((elapsed / duration) * 100));
 
-  // 1. Update Player Box Charge Fill
+  // 1. Update Player Box Charge Bar Fill
   const fillEl = document.getElementById(`${playerKey}-charge-fill`);
   if (fillEl) {
     fillEl.style.width = `${inputState.currentPercent}%`;
   }
 
-  // 2. Update Overlay Text Span
+  // 2. Update Box Text Overlay
   const textEl = document.getElementById(`${playerKey}-charge-text`);
   if (textEl) {
     textEl.textContent = `CHARGING [${inputState.heldDirection}]: ${inputState.currentPercent}%`;
@@ -79,10 +79,16 @@ function resetTurnInputState() {
     if (flagEl) flagEl.hidden = true;
   });
 
-  const statusEl = document.getElementById('charge-status-display');
-  if (statusEl) {
-    statusEl.textContent = 'TAP DIRECTION TO CHARGE';
-    statusEl.style.color = '#00ffcc';
+  const p1StatusEl = document.getElementById('charge-status-display');
+  if (p1StatusEl) {
+    p1StatusEl.textContent = 'TAP DIRECTION TO CHARGE';
+    p1StatusEl.style.color = '#00ffcc';
+  }
+
+  const p2StatusEl = document.getElementById('p2-charge-status-display');
+  if (p2StatusEl) {
+    p2StatusEl.textContent = 'P2 TOUCH READY';
+    p2StatusEl.style.color = '#00bfff';
   }
 }
 
@@ -173,11 +179,14 @@ function startRoundCountdown() {
     }
   }, 1000);
 
+  // --- CPU THINKING & DYNAMIC CHARGE HOLD SIMULATION ---
   ['p1', 'p2'].forEach(slot => {
     const player = window.gameState[slot];
     if (player && player.isCPU && !player.isFainted) {
       if (slot === 'p2' && window.gameState.p2AlwaysIdle) return;
-      const thinkTime = Math.floor(Math.random() * 1200 + 800);
+
+      // 1. Reaction Delay before CPU presses direction (300ms - 700ms)
+      const reactionDelay = Math.floor(Math.random() * 400 + 300);
 
       setTimeout(() => {
         if (window.gameState.roundPhase !== 'INPUT') return;
@@ -199,8 +208,49 @@ function startRoundCountdown() {
           console.warn("CPU Move Decision Exception:", err);
         }
 
-        confirmPlayerAction(chosenKey, slot);
-      }, thinkTime);
+        if (!chosenKey || chosenKey === 'DO_NOTHING') {
+          confirmPlayerAction('DO_NOTHING', slot);
+          return;
+        }
+
+        const parts = chosenKey.split('+');
+        const dir = parts[0];
+        const act = parts[1];
+
+        // 2. Begin Direction Hold & Trigger Bar Progress Loop
+        const cpuInputState = slot === 'p1' ? window.gameState.input : window.gameState.p2Input;
+        cpuInputState.heldDirection = dir;
+        cpuInputState.chargeStartTime = Date.now();
+        cpuInputState.currentPercent = 0;
+
+        if (cpuInputState.chargeInterval) clearInterval(cpuInputState.chargeInterval);
+        cpuInputState.chargeInterval = setInterval(() => updateChargeProgress(slot), 30);
+
+        // Highlight direction button visually
+        const dirBtn = document.getElementById(slot === 'p1' ? `key-${dir}` : `p2-key-${dir}`);
+        if (dirBtn) dirBtn.classList.add('active');
+
+        // 3. Target Charge Duration (Build charge up to 75% - 100%)
+        const chargeTimes = window.CHARGE_TIMES || { W: 3500, A: 2200, S: 4200, D: 3000 };
+        const fullDuration = chargeTimes[dir] || 3000;
+        const targetPercent = Math.min(100, Math.floor(Math.random() * 25 + 75));
+        const holdDuration = Math.floor((targetPercent / 100) * fullDuration);
+
+        // 4. Tap Action Button to Lock Move
+        setTimeout(() => {
+          if (window.gameState.roundPhase !== 'INPUT') return;
+          if (dirBtn) dirBtn.classList.remove('active');
+
+          const actBtn = document.getElementById(slot === 'p1' ? `key-${act}` : `p2-key-${act}`);
+          if (actBtn) {
+            actBtn.classList.add('active');
+            setTimeout(() => actBtn.classList.remove('active'), 250);
+          }
+
+          confirmPlayerAction(chosenKey, slot);
+        }, holdDuration);
+
+      }, reactionDelay);
     }
   });
 }
@@ -266,20 +316,29 @@ function confirmPlayerAction(moveKey, playerKey = 'p1') {
 }
 
 function bindKeyboardInputs() {
+  const handleGameOverContinue = () => {
+    if (window.gameState.roundPhase === 'GAME_OVER' && window.gameState.canContinueFromGameOver) {
+      if (typeof window.returnToCharSelect === 'function') {
+        window.returnToCharSelect();
+      } else if (typeof window.resetToCharSelect === 'function') {
+        window.resetToCharSelect();
+      }
+      return true;
+    }
+    return false;
+  };
+
+  // 1. Keyboard Listeners
   window.addEventListener('keydown', (e) => {
     unlockMobileVideos();
-
-    if (window.gameState.roundPhase === 'GAME_OVER' && window.gameState.canContinueFromGameOver) {
-      if (typeof window.returnToCharSelect === 'function') window.returnToCharSelect();
-      return;
-    }
+    if (handleGameOverContinue()) return;
 
     if (window.gameState.roundPhase !== 'INPUT') return;
 
     const rawKey = e.key;
     const upperKey = rawKey ? rawKey.toUpperCase() : '';
 
-    // P1 Keyboard Bindings (WASD + IJ KL)
+    // P1 Keyboard Bindings (WASD + IJKL)
     if (!window.gameState.p1?.isCPU && window.gameState.input?.acceptingInputs && !window.gameState.input?.isConfirmed) {
       if (['A', 'D', 'W', 'S'].includes(upperKey)) {
         if (window.gameState.input.heldDirection !== upperKey) {
@@ -307,7 +366,7 @@ function bindKeyboardInputs() {
       }
     }
 
-    // P2 Keyboard Bindings (Arrow Keys + Numpad / Keys)
+    // P2 Keyboard Bindings (Arrow Keys + Numpad)
     if (!window.gameState.p2?.isCPU && window.gameState.p2Input?.acceptingInputs && !window.gameState.p2IsConfirmed) {
       const p2DirMap = { 'ARROWUP': 'W', 'ARROWLEFT': 'A', 'ARROWDOWN': 'S', 'ARROWRIGHT': 'D' };
       const p2ActMap = { 'NUMPAD8': 'I', 'NUMPAD4': 'J', 'NUMPAD5': 'K', 'NUMPAD6': 'L', '8': 'I', '4': 'J', '5': 'K', '6': 'L' };
@@ -339,6 +398,12 @@ function bindKeyboardInputs() {
         }
       }
     }
+  });
+
+  // 2. Mouse Click & Screen Touch Continue Listener
+  window.addEventListener('pointerdown', (e) => {
+    unlockMobileVideos();
+    handleGameOverContinue();
   });
 }
 
@@ -384,6 +449,8 @@ window.unlockMobileVideos = unlockMobileVideos;
 window.startRoundCountdown = startRoundCountdown;
 window.launchRoundTimer = launchRoundTimer;
 window.confirmPlayerAction = confirmPlayerAction;
+window.updateChargeProgress = updateChargeProgress;
+window.resetTurnInputState = resetTurnInputState;
 
 window.addEventListener('DOMContentLoaded', () => {
   bindKeyboardInputs();
