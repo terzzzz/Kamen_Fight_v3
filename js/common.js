@@ -26,10 +26,10 @@ window.GAME_CONFIG = window.GAME_CONFIG || {
 
 // Default directional charge duration thresholds in milliseconds
 window.CHARGE_TIMES = window.CHARGE_TIMES || {
-  W: 2000,
-  A: 1500,
-  S: 2500,
-  D: 2000
+  W: 3500,
+  A: 2200,
+  S: 4200,
+  D: 3000
 };
 
 function getOpponentMovesData(opponentPlayer) {
