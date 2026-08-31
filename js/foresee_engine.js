@@ -1,21 +1,17 @@
 /**
  * Shared 3-Turn / 4-Turn Foresee Simulation Engine (Minimax / Expectimax Tree)
  * Path: js/foresee_engine.js
- * Compatible with CPU vs. CPU and CPU vs. Human matches.
+ * Updated with exact Combat Engine EV Expected Value Resolution
  */
 
 (function (window) {
   'use strict';
 
-  function getMoveRangePrioritySim(move, moveKey = '') {
+  function getMoveRangePrioritySim(move) {
     if (!move) return 1;
     const range = (move.rangeType || 'MELEE').toUpperCase();
-    const type = (move.type || '').toUpperCase();
-    const isWSkill = (moveKey && moveKey.startsWith('W')) || type === 'UTILITY' || type === 'BUFF';
-
-    if (range === 'PROJECTILE') return 4;
-    if (range === 'REACH' || range === 'ROPE' || range === 'MID_RANGE') return 3;
-    if (isWSkill) return 2;
+    if (range === 'PROJECTILE') return 3;
+    if (range === 'REACH' || range === 'ROPE' || range === 'MID_RANGE') return 2;
     return 1;
   }
 
@@ -37,27 +33,36 @@
     nextSelf.chi = Math.max(0, nextSelf.chi - (selfMove.chiCost || 0));
     nextOpp.chi = Math.max(0, nextOpp.chi - (oppMove.chiCost || 0));
 
-    const selfPri = getMoveRangePrioritySim(selfMove, selfMoveKey);
-    const oppPri = getMoveRangePrioritySim(oppMove, oppMoveKey);
+    const selfPri = getMoveRangePrioritySim(selfMove);
+    const oppPri = getMoveRangePrioritySim(oppMove);
 
     let selfGoesFirst = true;
     if (oppPri > selfPri) {
       selfGoesFirst = false;
-    } else if (selfPri === oppPri) {
-      if (selfMoveKey.startsWith('W') && !oppMoveKey.startsWith('W')) selfGoesFirst = true;
-      else if (!selfMoveKey.startsWith('W') && oppMoveKey.startsWith('W')) selfGoesFirst = false;
-      else if (selfMoveKey.startsWith('D') && oppMoveKey.startsWith('S')) selfGoesFirst = false;
-      else if (selfMoveKey.startsWith('S') && oppMoveKey.startsWith('D')) selfGoesFirst = true;
+    } else if (selfPri > oppPri) {
+      selfGoesFirst = true;
+    } else {
+      // Range Equal: Compare Stance Categories S > W > D
+      const selfIsS = selfMoveKey.startsWith('S');
+      const oppIsS = oppMoveKey.startsWith('S');
+      const selfIsW = selfMoveKey.startsWith('W');
+      const oppIsW = oppMoveKey.startsWith('W');
+
+      if (selfIsS && !oppIsS) selfGoesFirst = true;
+      else if (!selfIsS && oppIsS) selfGoesFirst = false;
+      else if (selfIsW && !oppIsW) selfGoesFirst = true;
+      else if (!selfIsW && oppIsW) selfGoesFirst = false;
+      else selfGoesFirst = true;
     }
 
     const steps = selfGoesFirst
       ? [
-          { atk: nextSelf, def: nextOpp, move: selfMove, key: selfMoveKey, oppMove: oppMove, isSelf: true },
-          { atk: nextOpp, def: nextSelf, move: oppMove, key: oppMoveKey, oppMove: selfMove, isSelf: false }
+          { atk: nextSelf, def: nextOpp, move: selfMove, key: selfMoveKey, oppMove: oppMove, oppMoveKey: oppMoveKey, isSelf: true },
+          { atk: nextOpp, def: nextSelf, move: oppMove, key: oppMoveKey, oppMove: selfMove, oppMoveKey: selfMoveKey, isSelf: false }
         ]
       : [
-          { atk: nextOpp, def: nextSelf, move: oppMove, key: oppMoveKey, oppMove: selfMove, isSelf: false },
-          { atk: nextSelf, def: nextOpp, move: selfMove, key: selfMoveKey, oppMove: oppMove, isSelf: true }
+          { atk: nextOpp, def: nextSelf, move: oppMove, key: oppMoveKey, oppMove: selfMove, oppMoveKey: selfMoveKey, isSelf: false },
+          { atk: nextSelf, def: nextOpp, move: selfMove, key: selfMoveKey, oppMove: oppMove, oppMoveKey: oppMoveKey, isSelf: true }
         ];
 
     let turn1Interrupted = false;
@@ -82,22 +87,55 @@
       const isFullPowerAtk = step.atk.chi > 14;
       const isLowPowerDef = step.def.chi < 5;
 
-      let hitRate = ((step.move.hitChance || 80) / 100);
-      if (isFullPowerAtk) {
-        hitRate = Math.min(1.0, hitRate + 0.20);
-      }
-      if (step.atk.activeBuffs && step.atk.activeBuffs.some(b => b.id === 'arm_calibration' || b.id === 'red_lamp_boost' || b.id === 'accuracy_focus')) {
-        hitRate = Math.min(1.0, hitRate + 0.15);
+      let isGuarded = step.oppMove.type === 'DEFENSE' && !step.def.isFainted;
+      let expectedDamageMult = 1.0;
+      let defenderChiReward = 0;
+      let guardWasSuccessful = false;
+
+      if (isGuarded) {
+        const atkButton = step.key.includes('+') ? step.key.split('+')[1] : null;
+        const defKeyStr = step.oppMoveKey || '';
+        const isSpecialGuard = (defKeyStr === 'A+I') || step.oppMove.name === 'Windmill Guard' || step.oppMove.isSpecialGuard === true;
+
+        const defenderChargeRatio = Math.min(1.0, Math.max(0.0, (step.def.activeChargePercent !== undefined ? step.def.activeChargePercent : 100) / 100));
+        const defenderChargeFactor = Math.sqrt(0.5 + (0.5 * defenderChargeRatio));
+        const probGoodGuard = Math.min(1.0, Math.max(0.0, (70 * defenderChargeFactor) / 100));
+
+        if (isSpecialGuard) {
+          guardWasSuccessful = true;
+          expectedDamageMult = probGoodGuard * 0.0 + (1 - probGoodGuard) * 0.50;
+          defenderChiReward = probGoodGuard * 2 + (1 - probGoodGuard) * 1;
+        } else if (atkButton && defKeyStr === `A+${atkButton}`) {
+          // MATCHED DIRECTIONAL GUARD
+          guardWasSuccessful = true;
+          expectedDamageMult = probGoodGuard * 0.25 + (1 - probGoodGuard) * 0.70;
+          defenderChiReward = probGoodGuard * 4 + (1 - probGoodGuard) * 2;
+        } else {
+          // MISMATCHED GUARD (INTERRUPTED, 100% DMG, 0 CHI)
+          guardWasSuccessful = false;
+          expectedDamageMult = 1.0;
+          defenderChiReward = 0;
+        }
+
+        step.def.chi = Math.min(rules.MAX_CHI, step.def.chi + defenderChiReward);
       }
 
-      let isGuarded = step.oppMove.type === 'DEFENSE' && !step.def.isFainted;
-      let damageMult = (isGuarded && !step.move.unblockable) ? 0.30 : 1.0;
+      let hitRate = 0.80;
+      if (step.oppMoveKey === 'DO_NOTHING' || step.oppMove.type === 'IDLE' || isGuarded || step.def.isFainted) {
+        hitRate = 1.0; // Guaranteed hit against Idle/Guard
+      } else {
+        hitRate = (step.move.hitChance || 80) / 100;
+        if (isFullPowerAtk) hitRate = Math.min(1.0, hitRate + 0.20);
+        if (step.atk.activeBuffs && step.atk.activeBuffs.some(b => b.id === 'arm_calibration' || b.id === 'red_lamp_boost' || b.id === 'accuracy_focus')) {
+          hitRate = Math.min(1.0, hitRate + 0.15);
+        }
+      }
 
       let baseDmg = step.move.baseDamage || 0;
       if (isFullPowerAtk) baseDmg *= 1.20;
       if (isLowPowerDef) baseDmg *= 1.25;
 
-      let expectedDmg = Math.floor(baseDmg * hitRate * damageMult);
+      let expectedDmg = Math.floor(baseDmg * hitRate * expectedDamageMult);
 
       let baseFaintDmg = step.move.baseFaintDamage || 25;
       if (isLowPowerDef) baseFaintDmg *= 1.25;
@@ -113,6 +151,8 @@
         step.def.faintMeter = Math.min(rules.FAINT_THRESHOLD, step.def.faintMeter + expectedFaint);
         if (step.def.faintMeter >= rules.FAINT_THRESHOLD) step.def.isFainted = true;
         if (idx === 0) turn1Interrupted = true;
+      } else if (!guardWasSuccessful && idx === 0) {
+        turn1Interrupted = true;
       }
 
       if (step.key.startsWith('D')) {
@@ -159,11 +199,8 @@
     const W_CHI = (characterWeights.W_CHI || 8.0) * resourceDiscount;
     const W_FAINT = (characterWeights.W_FAINT || 2.0) * resourceDiscount;
 
-    let selfEffectiveChi = selfState.chi;
-    let oppEffectiveChi = oppState.chi;
-
     let score = ((selfState.lp - oppState.lp) * W_LP) +
-                ((selfEffectiveChi - oppEffectiveChi) * W_CHI);
+                ((selfState.chi - oppState.chi) * W_CHI);
 
     if (selfState.chi < 5) score -= 80 * resourceDiscount;
     if (oppState.chi < 5) score += 80 * resourceDiscount;
@@ -180,21 +217,6 @@
     }
     if (selfState.isFainted || selfState.faintMeter >= 100 || selfState.cashedInFaint) {
       score -= 300 * lpUrgencyMultiplier;
-    }
-
-    const hasAtkBuff = selfState.activeBuffs && selfState.activeBuffs.some(b => b.id === 'focus' || b.id === 'power_focus');
-    if (hasAtkBuff && selfState.chi >= 6) {
-      score += 120;
-    }
-
-    if (oppState.isFainted || oppState.faintMeter >= 80) {
-      if (selfState.chi >= 6) {
-        score += 180;
-      }
-    }
-
-    if (selfState.id === 'nigo' && selfState.chi >= 12 && selfState.chi < 15) {
-      score += 90;
     }
 
     return score;
