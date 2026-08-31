@@ -547,11 +547,20 @@ async function executeTurnResolutionPhase() {
   } else if (p1IsD && p2IsS) {
     p1GoesFirst = false;
   } else {
+    // Dynamic Stance-Based Elapsed Charge Time Tie-Breaker Lookups
+    const chargeTimes = window.CHARGE_TIMES || { W: 3500, A: 2200, S: 4200, D: 3000 };
+
     let p1Charge = window.gameState.p1.activeChargePercent !== undefined ? window.gameState.p1.activeChargePercent : 100;
     let p2Charge = window.gameState.p2.activeChargePercent !== undefined ? window.gameState.p2.activeChargePercent : 100;
 
-    let p1Elapsed = p1Charge * 0.025;
-    let p2Elapsed = p2Charge * 0.025;
+    let p1Dir = (typeof p1MoveKey === 'string' && p1MoveKey.includes('+')) ? p1MoveKey.split('+')[0] : 'D';
+    let p2Dir = (typeof p2MoveKey === 'string' && p2MoveKey.includes('+')) ? p2MoveKey.split('+')[0] : 'D';
+
+    let p1MaxMs = chargeTimes[p1Dir] || 3000;
+    let p2MaxMs = chargeTimes[p2Dir] || 3000;
+
+    let p1Elapsed = (p1Charge / 100) * (p1MaxMs / 1000);
+    let p2Elapsed = (p2Charge / 100) * (p2MaxMs / 1000);
 
     if (p1Elapsed < p2Elapsed) {
       p1GoesFirst = true;
