@@ -897,11 +897,15 @@ async function executeTurnResolutionPhase() {
 
   if (window.gameState.p1.lp > 0 && window.gameState.p2.lp > 0) {
     window.gameState.roundCounter++;
+    
+    // Explicitly transition to INPUT phase before launching timer
+    window.gameState.roundPhase = 'INPUT';
     if (typeof window.launchRoundTimer === 'function') window.launchRoundTimer();
 
     if (window.gameState.p1.isCPU && window.gameState.p2.isCPU) {
       setTimeout(() => {
-        if (window.gameState.roundPhase === 'INPUT') {
+        // Safe auto-advance trigger for CPU vs CPU
+        if (window.gameState.roundPhase === 'INPUT' || window.gameState.roundPhase === 'RESOLUTION') {
           executeTurnResolutionPhase();
         }
       }, 1200);
