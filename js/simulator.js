@@ -42,35 +42,44 @@ function getSimMovePriority(move) {
   return 1;
 }
 
+function getSimStanceTier(key) {
+  if (typeof key !== 'string') return 0;
+  if (key.startsWith('S')) return 3;
+  if (key.startsWith('W')) return 2;
+  if (key.startsWith('D')) return 1;
+  return 0;
+}
+
+// Fast heuristic CPU choice for batch simulation to avoid thread locking
 function selectCPUMoveSim(cpu, opp, moves, difficulty) {
   if (cpu.isFainted) return 'DO_NOTHING';
 
   const diff = String(difficulty || 'normal').toLowerCase();
+  const validKeys = Object.keys(moves || {}).filter(k => (moves[k]?.chiCost || 0) <= cpu.chi);
 
-  // Fast-path heuristic for batch simulation to avoid heavy recursion thread locking
-  if (diff === 'hard' && window.ForeseeEngine && typeof window.ForeseeEngine.getBestMove === 'function') {
-    try {
-      const riderProfile = (window.RIDER_AI_PROFILES && window.RIDER_AI_PROFILES[cpu.id]) 
-        ? window.RIDER_AI_PROFILES[cpu.id] 
-        : { weights: { W_LP: 1.0, W_CHI: 8.0, W_FAINT: 2.0 } };
-      
-      // Use depth = 1 or 2 specifically for headless batch speed
-      return window.ForeseeEngine.getBestMove(cpu, opp, moves, riderProfile, 2);
-    } catch (e) {}
+  if (validKeys.length === 0) return 'DO_NOTHING';
+
+  // Smart Heuristic Weighting
+  if (diff === 'hard' || diff === 'normal') {
+    const sMoves = validKeys.filter(k => k.startsWith('S'));
+    const dMoves = validKeys.filter(k => k.startsWith('D'));
+    const aMoves = validKeys.filter(k => k.startsWith('A'));
+
+    // High Chi: favor S Specials
+    if (cpu.chi >= 6 && sMoves.length > 0 && Math.random() < 0.65) {
+      return sMoves[Math.floor(Math.random() * sMoves.length)];
+    }
+    // Opponent high Chi: chance to guard
+    if (opp.chi >= 6 && aMoves.length > 0 && Math.random() < 0.40) {
+      return aMoves[Math.floor(Math.random() * aMoves.length)];
+    }
+    // Standard attack choice
+    if (dMoves.length > 0 && Math.random() < 0.70) {
+      return dMoves[Math.floor(Math.random() * dMoves.length)];
+    }
   }
 
-  if (typeof window.selectCPUMove === 'function') {
-    let availableMoves = {};
-    Object.keys(moves || {}).forEach(k => {
-      if ((moves[k]?.chiCost || 0) <= cpu.chi) {
-        availableMoves[k] = moves[k];
-      }
-    });
-    return window.selectCPUMove(cpu, opp, availableMoves, difficulty);
-  }
-
-  const availableKeys = Object.keys(moves || {}).filter(k => (moves[k]?.chiCost || 0) <= cpu.chi);
-  return availableKeys.length > 0 ? availableKeys[Math.floor(Math.random() * availableKeys.length)] : 'D+J';
+  return validKeys[Math.floor(Math.random() * validKeys.length)];
 }
 
 async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = 'normal', p2Difficulty = 'normal', progressCallback = null) {
@@ -97,8 +106,9 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
   };
 
   for (let matchIndex = 0; matchIndex < count; matchIndex++) {
-    // Yield to main thread every match to keep UI responsive
-    await new Promise(resolve => setTimeout(resolve, 0));
+    if (matchIndex % 5 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
 
     if (typeof progressCallback === 'function') {
       progressCallback(matchIndex + 1, count);
@@ -140,29 +150,35 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
         let m1 = getSimMove(p1Moves, p1Key);
         let m2 = getSimMove(p2Moves, p2Key);
 
-        let p1Pri = getSimMovePriority(m1);
-        let p2Pri = getSimMovePriority(m2);
+        let p1IsIdle = p1Key === 'DO_NOTHING' || m1.type === 'IDLE';
+        let p2IsIdle = p2Key === 'DO_NOTHING' || m2.type === 'IDLE';
 
         let p1GoesFirst = false;
-        if (p1Key !== 'DO_NOTHING' && p2Key === 'DO_NOTHING') {
-          p1GoesFirst = true;
-        } else if (p1Key === 'DO_NOTHING' && p2Key !== 'DO_NOTHING') {
-          p1GoesFirst = false;
-        } else if (p1Pri > p2Pri) {
-          p1GoesFirst = true;
-        } else if (p1Pri < p2Pri) {
-          p1GoesFirst = false;
-        } else {
-          const p1IsS = p1Key.startsWith('S');
-          const p2IsS = p2Key.startsWith('S');
-          const p1IsW = p1Key.startsWith('W');
-          const p2IsW = p2Key.startsWith('W');
 
-          if (p1IsS && !p2IsS) p1GoesFirst = true;
-          else if (!p1IsS && p2IsS) p1GoesFirst = false;
-          else if (p1IsW && !p2IsW) p1GoesFirst = true;
-          else if (!p1IsW && p2IsW) p1GoesFirst = false;
-          else p1GoesFirst = (roundCounter % 2 === 1);
+        // RULE A: IDLE ALWAYS GOES LAST
+        if (!p1IsIdle && p2IsIdle) {
+          p1GoesFirst = true;
+        } else if (p1IsIdle && !p2IsIdle) {
+          p1GoesFirst = false;
+        } else if (p1IsIdle && p2IsIdle) {
+          p1GoesFirst = Math.random() < 0.5;
+        } else {
+          // RULE B: RANGE PRIORITY -> STANCE SUB-TIER (S > W > D)
+          let p1Pri = getSimMovePriority(m1);
+          let p2Pri = getSimMovePriority(m2);
+
+          if (p1Pri !== p2Pri) {
+            p1GoesFirst = p1Pri > p2Pri;
+          } else {
+            let p1Stance = getSimStanceTier(p1Key);
+            let p2Stance = getSimStanceTier(p2Key);
+
+            if (p1Stance !== p2Stance) {
+              p1GoesFirst = p1Stance > p2Stance;
+            } else {
+              p1GoesFirst = Math.random() < 0.5;
+            }
+          }
         }
 
         let first = p1GoesFirst ? p1 : p2;
@@ -182,10 +198,13 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
 
         if (mFirst.baseDamage > 0 && keyFirst !== 'DO_NOTHING' && !first.isFainted) {
           let isSecondGuarding = mSecond.type === 'DEFENSE' && !second.isFainted;
+          let isSecondIdle = keySecond === 'DO_NOTHING' || mSecond.type === 'IDLE';
+
           let hitChance = mFirst.hitChance || 80;
           if (first.chi > 14) hitChance = Math.min(100, hitChance + 20);
 
-          let hitRoll = second.isFainted || keySecond === 'DO_NOTHING' || isSecondGuarding || (Math.random() * 100 < hitChance);
+          // IDLE targets are ALWAYS hit with 100% certainty
+          let hitRoll = second.isFainted || isSecondIdle || isSecondGuarding || (Math.random() * 100 < hitChance);
 
           if (hitRoll) {
             let damageMult = 1.0;
@@ -246,10 +265,13 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
 
         if (second.lp > 0 && mSecond.baseDamage > 0 && keySecond !== 'DO_NOTHING' && !second.isFainted && !firstInterrupted) {
           let isFirstGuarding = mFirst.type === 'DEFENSE' && !first.isFainted;
+          let isFirstIdle = keyFirst === 'DO_NOTHING' || mFirst.type === 'IDLE';
+
           let hitChance = mSecond.hitChance || 80;
           if (second.chi > 14) hitChance = Math.min(100, hitChance + 20);
 
-          let hitRoll = first.isFainted || keyFirst === 'DO_NOTHING' || isFirstGuarding || (Math.random() * 100 < hitChance);
+          // IDLE targets are ALWAYS hit with 100% certainty
+          let hitRoll = first.isFainted || isFirstIdle || isFirstGuarding || (Math.random() * 100 < hitChance);
 
           if (hitRoll) {
             let damageMult = 1.0;
@@ -257,7 +279,7 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
 
             if (isFirstGuarding) {
               const atkButton = keySecond.includes('+') ? keySecond.split('+')[1] : null;
-              const isSpecialGuard = keyFirst === 'A+I' || mFirst.name === 'Windmill Guard' || mFirst.isFirstGuarding === true;
+              const isSpecialGuard = keyFirst === 'A+I' || mFirst.name === 'Windmill Guard' || mFirst.isSpecialGuard === true;
               const probGood = Math.random() < 0.70;
 
               if (isSpecialGuard) {
