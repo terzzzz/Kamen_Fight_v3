@@ -666,22 +666,17 @@ async function executeTurnResolutionPhase() {
             await applyFaintBuildUp(defender1, defKey1, getFaintDamageForMove(move1));
           }
         } else if (!result.hitLanded) {
+          // COMPLETE MISS: 0 Chi Gain, Play Dodge Animation
           if (typeof window.playCenterVideo === 'function') {
             await window.playCenterVideo(defKey1, 'dodge.mp4', 'DODGED!');
           }
           triggerFloatingText(defKey1, 'MISS!!', 'miss');
         } else if (result.isGlancing) {
+          // GLANCING HIT / SCRATCH: Play Hit animation & DO NOT award Chi Gain
           if (typeof window.playCenterVideo === 'function') {
-            await window.playCenterVideo(defKey1, 'dodge.mp4', 'EVADED!');
+            await window.playCenterVideo(defKey1, 'hit_physical.mp4', 'SCRATCH!');
           }
           defender1.lp = Math.max(0, defender1.lp - result.finalDmg);
-
-          const chiGain1 = getAttackerChiGainOnHit(move1, key1);
-          if (chiGain1 > 0) {
-            attacker1.chi = Math.min(rules.MAX_CHI, attacker1.chi + chiGain1);
-            triggerFloatingText(atkKey1, `CHI +${chiGain1}!`, 'heal');
-          }
-
           updateHUD();
 
           triggerStaggeredPopups(defKey1, [
@@ -691,6 +686,7 @@ async function executeTurnResolutionPhase() {
 
           await applyFaintBuildUp(defender1, defKey1, 10);
         } else {
+          // CLEAN HIT: Award Chi Gain here ONLY
           defender1WasInterrupted = true;
 
           const hitVid = (typeof key1 === 'string' && key1.startsWith('S')) ? 'hit.mp4' : 'hit_physical.mp4';
@@ -779,22 +775,17 @@ async function executeTurnResolutionPhase() {
           await applyFaintBuildUp(defender2, defKey2, getFaintDamageForMove(move2));
         }
       } else if (!result.hitLanded) {
+        // COMPLETE MISS: 0 Chi Gain, Play Dodge Animation
         if (typeof window.playCenterVideo === 'function') {
           await window.playCenterVideo(defKey2, 'dodge.mp4', 'DODGED!');
         }
         triggerFloatingText(defKey2, 'MISS!!', 'miss');
       } else if (result.isGlancing) {
+        // GLANCING HIT / SCRATCH: Play Hit animation & DO NOT award Chi Gain
         if (typeof window.playCenterVideo === 'function') {
-          await window.playCenterVideo(defKey2, 'dodge.mp4', 'EVADED!');
+          await window.playCenterVideo(defKey2, 'hit_physical.mp4', 'SCRATCH!');
         }
         defender2.lp = Math.max(0, defender2.lp - result.finalDmg);
-
-        const chiGain2 = getAttackerChiGainOnHit(move2, key2);
-        if (chiGain2 > 0) {
-          attacker2.chi = Math.min(rules.MAX_CHI, attacker2.chi + chiGain2);
-          triggerFloatingText(atkKey2, `CHI +${chiGain2}!`, 'heal');
-        }
-
         updateHUD();
 
         triggerStaggeredPopups(defKey2, [
@@ -804,6 +795,7 @@ async function executeTurnResolutionPhase() {
 
         await applyFaintBuildUp(defender2, defKey2, 10);
       } else {
+        // CLEAN HIT: Award Chi Gain here ONLY
         const hitVid = (typeof key2 === 'string' && key2.startsWith('S')) ? 'hit.mp4' : 'hit_physical.mp4';
         if (typeof window.playCenterVideo === 'function') {
           await window.playCenterVideo(defKey2, hitVid, 'TAKING DAMAGE');
