@@ -1,6 +1,7 @@
 /**
  * Synchronized Headless Match Simulator Engine
  * Path: js/simulator.js
+ * Aligned with updated Combat Engine Guard, Priority & Idle mechanics
  */
 
 let cachedSimulatorMoves = null;
@@ -122,16 +123,25 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
       let p2Pri = getSimMovePriority(m2);
 
       let p1GoesFirst = false;
-      if (p1Pri > p2Pri) {
+      if (p1Key !== 'DO_NOTHING' && p2Key === 'DO_NOTHING') {
+        p1GoesFirst = true;
+      } else if (p1Key === 'DO_NOTHING' && p2Key !== 'DO_NOTHING') {
+        p1GoesFirst = false;
+      } else if (p1Pri > p2Pri) {
         p1GoesFirst = true;
       } else if (p1Pri < p2Pri) {
         p1GoesFirst = false;
-      } else if (p1Key.startsWith('S') && p2Key.startsWith('D')) {
-        p1GoesFirst = true;
-      } else if (p1Key.startsWith('D') && p2Key.startsWith('S')) {
-        p1GoesFirst = false;
       } else {
-        p1GoesFirst = (roundCounter % 2 === 1);
+        const p1IsS = p1Key.startsWith('S');
+        const p2IsS = p2Key.startsWith('S');
+        const p1IsW = p1Key.startsWith('W');
+        const p2IsW = p2Key.startsWith('W');
+
+        if (p1IsS && !p2IsS) p1GoesFirst = true;
+        else if (!p1IsS && p2IsS) p1GoesFirst = false;
+        else if (p1IsW && !p2IsW) p1GoesFirst = true;
+        else if (!p1IsW && p2IsW) p1GoesFirst = false;
+        else p1GoesFirst = (roundCounter % 2 === 1);
       }
 
       let first = p1GoesFirst ? p1 : p2;
@@ -141,23 +151,45 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
       let keyFirst = p1GoesFirst ? p1Key : p2Key;
       let keySecond = p1GoesFirst ? p2Key : p1Key;
 
-      // FIRST ATTACKER EXECUTION
+      let firstInterrupted = false;
+
+      // --- FIRST ATTACKER EXECUTION ---
       first.chi = Math.max(0, first.chi - (mFirst.chiCost || 0));
       if (mFirst.faintRecovery && first.faintMeter > 0) {
         first.faintMeter = Math.max(0, first.faintMeter - mFirst.faintRecovery);
       }
 
-      let firstInterrupted = false;
-
       if (mFirst.baseDamage > 0 && keyFirst !== 'DO_NOTHING' && !first.isFainted) {
+        let isSecondGuarding = mSecond.type === 'DEFENSE' && !second.isFainted;
         let hitChance = mFirst.hitChance || 80;
         if (first.chi > 14) hitChance = Math.min(100, hitChance + 20);
 
-        let hitRoll = second.isFainted || keySecond === 'DO_NOTHING' || mSecond.type === 'DEFENSE' || (Math.random() * 100 < hitChance);
-        if (hitRoll) {
-          let damageMult = mSecond.type === 'DEFENSE' ? 0.30 : 1.0;
-          let baseDmg = mFirst.baseDamage || 60;
+        let hitRoll = second.isFainted || keySecond === 'DO_NOTHING' || isSecondGuarding || (Math.random() * 100 < hitChance);
 
+        if (hitRoll) {
+          let damageMult = 1.0;
+          let guardSuccess = false;
+
+          if (isSecondGuarding) {
+            const atkButton = keyFirst.includes('+') ? keyFirst.split('+')[1] : null;
+            const isSpecialGuard = keySecond === 'A+I' || mSecond.name === 'Windmill Guard' || mSecond.isSpecialGuard === true;
+            const probGood = Math.random() < 0.70;
+
+            if (isSpecialGuard) {
+              guardSuccess = true;
+              damageMult = probGood ? 0.0 : 0.50;
+              second.chi = Math.min(second.maxChi, second.chi + (probGood ? 2 : 1));
+            } else if (atkButton && keySecond === `A+${atkButton}`) {
+              guardSuccess = true;
+              damageMult = probGood ? 0.25 : 0.70;
+              second.chi = Math.min(second.maxChi, second.chi + (probGood ? 4 : 2));
+            } else {
+              guardSuccess = false;
+              damageMult = 1.0;
+            }
+          }
+
+          let baseDmg = mFirst.baseDamage || 60;
           if (first.chi > 14) baseDmg *= 1.20;
           if (second.chi < 5) baseDmg *= 1.25;
           if (first.difficulty === 'hard') baseDmg *= 1.10;
@@ -165,9 +197,11 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
           let dmg = Math.floor(baseDmg * damageMult);
           second.lp = Math.max(0, second.lp - dmg);
 
-          if (mSecond.type !== 'DEFENSE') firstInterrupted = true;
+          if (!isSecondGuarding || !guardSuccess) {
+            firstInterrupted = true;
+          }
 
-          if (!second.isFainted) {
+          if (!second.isFainted && !guardSuccess) {
             let faintDmg = mFirst.baseFaintDamage || rules.HIT_BUILDUP || 25;
             if (second.chi < 5) faintDmg *= 1.25;
             second.faintMeter += faintDmg;
@@ -177,26 +211,49 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
               second.willBeFainted = true;
             }
           }
+
           if (keyFirst.startsWith('D')) first.chi = Math.min(first.maxChi, first.chi + 2);
           if (mFirst.chiRefundOnHit) first.chi = Math.min(first.maxChi, first.chi + mFirst.chiRefundOnHit);
         }
       }
 
-      // SECOND ATTACKER EXECUTION
+      // --- SECOND ATTACKER EXECUTION ---
       second.chi = Math.max(0, second.chi - (mSecond.chiCost || 0));
       if (mSecond.faintRecovery && second.faintMeter > 0) {
         second.faintMeter = Math.max(0, second.faintMeter - mSecond.faintRecovery);
       }
 
       if (second.lp > 0 && mSecond.baseDamage > 0 && keySecond !== 'DO_NOTHING' && !second.isFainted && !firstInterrupted) {
+        let isFirstGuarding = mFirst.type === 'DEFENSE' && !first.isFainted;
         let hitChance = mSecond.hitChance || 80;
         if (second.chi > 14) hitChance = Math.min(100, hitChance + 20);
 
-        let hitRoll = first.isFainted || keyFirst === 'DO_NOTHING' || mFirst.type === 'DEFENSE' || (Math.random() * 100 < hitChance);
-        if (hitRoll) {
-          let damageMult = mFirst.type === 'DEFENSE' ? 0.30 : 1.0;
-          let baseDmg = mSecond.baseDamage || 60;
+        let hitRoll = first.isFainted || keyFirst === 'DO_NOTHING' || isFirstGuarding || (Math.random() * 100 < hitChance);
 
+        if (hitRoll) {
+          let damageMult = 1.0;
+          let guardSuccess = false;
+
+          if (isFirstGuarding) {
+            const atkButton = keySecond.includes('+') ? keySecond.split('+')[1] : null;
+            const isSpecialGuard = keyFirst === 'A+I' || mFirst.name === 'Windmill Guard' || mFirst.isSpecialGuard === true;
+            const probGood = Math.random() < 0.70;
+
+            if (isSpecialGuard) {
+              guardSuccess = true;
+              damageMult = probGood ? 0.0 : 0.50;
+              first.chi = Math.min(first.maxChi, first.chi + (probGood ? 2 : 1));
+            } else if (atkButton && keyFirst === `A+${atkButton}`) {
+              guardSuccess = true;
+              damageMult = probGood ? 0.25 : 0.70;
+              first.chi = Math.min(first.maxChi, first.chi + (probGood ? 4 : 2));
+            } else {
+              guardSuccess = false;
+              damageMult = 1.0;
+            }
+          }
+
+          let baseDmg = mSecond.baseDamage || 60;
           if (second.chi > 14) baseDmg *= 1.20;
           if (first.chi < 5) baseDmg *= 1.25;
           if (second.difficulty === 'hard') baseDmg *= 1.10;
@@ -204,7 +261,7 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
           let dmg = Math.floor(baseDmg * damageMult);
           first.lp = Math.max(0, first.lp - dmg);
 
-          if (!first.isFainted) {
+          if (!first.isFainted && !guardSuccess) {
             let faintDmg = mSecond.baseFaintDamage || rules.HIT_BUILDUP || 25;
             if (first.chi < 5) faintDmg *= 1.25;
             first.faintMeter += faintDmg;
@@ -214,6 +271,7 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
               first.willBeFainted = true;
             }
           }
+
           if (keySecond.startsWith('D')) second.chi = Math.min(second.maxChi, second.chi + 2);
           if (mSecond.chiRefundOnHit) second.chi = Math.min(second.maxChi, second.chi + mSecond.chiRefundOnHit);
         }
