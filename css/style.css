@@ -17,7 +17,6 @@
   --panel-bg: #11141e;
   --card-bg: #161b26;
   --border-cyan: #00ffcc;
-  --p2-blue: #00aaff;
   --text-yellow: #ffcc00;
   --text-red: #ff2a5f;
   --text-main: #e2e8f0;
@@ -343,42 +342,8 @@ body {
 
 .player-hud h2 {
   font-size: clamp(0.9rem, 3vw, 1.25rem);
+  color: var(--border-cyan);
   margin-bottom: 2px;
-}
-
-/* P1 VS P2 SPECIFIC HUD COLORS */
-.p1-hud h2 {
-  color: var(--border-cyan);
-}
-
-.p1-hud .stat-value-large {
-  color: var(--border-cyan);
-  text-shadow: 2px 2px 0px #000, 0px 0px 10px rgba(0, 255, 204, 0.9);
-}
-
-.p1-hud .chi-bar-track {
-  border: 1px solid var(--border-cyan);
-}
-
-.p1-hud .chi-bar-fill {
-  background: var(--border-cyan);
-}
-
-.p2-hud h2 {
-  color: var(--p2-blue);
-}
-
-.p2-hud .stat-value-large {
-  color: var(--p2-blue);
-  text-shadow: 2px 2px 0px #000, 0px 0px 10px rgba(0, 170, 255, 0.9);
-}
-
-.p2-hud .chi-bar-track {
-  border: 1px solid var(--p2-blue);
-}
-
-.p2-hud .chi-bar-fill {
-  background: var(--p2-blue);
 }
 
 .stat-line {
@@ -416,6 +381,8 @@ body {
   font-family: 'Impact', 'Arial Black', sans-serif;
   font-size: clamp(1.1rem, 3.5vw, 1.55rem);
   font-weight: 900;
+  color: var(--border-cyan);
+  text-shadow: 2px 2px 0px #000, 0px 0px 10px rgba(0, 255, 204, 0.9);
 }
 
 .chi-bar-track {
@@ -423,12 +390,14 @@ body {
   max-width: 140px !important;
   height: 8px;
   background: #222;
+  border: 1px solid var(--border-cyan);
   display: block !important;
   flex-shrink: 0 !important;
 }
 
 .chi-bar-fill {
   height: 100%;
+  background: var(--border-cyan);
   width: 0%;
   transition: width 0.2s ease, background-color 0.2s ease;
 }
