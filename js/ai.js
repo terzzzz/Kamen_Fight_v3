@@ -1,7 +1,6 @@
 /**
  * Main AI Memory Manager, Habit Tracker, Rider Profiles & Decision Engine
  * Path: js/ai.js
- * Updated with exact Expected Value (EV) Guard and Priority Rules
  */
 
 window.RIDER_AI_PROFILES = {
@@ -117,10 +116,16 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
     const specialKeys = moveKeys.filter(k => k.startsWith('S+') && (availableMoves[k].chiCost || 0) <= cpuPlayer.chi);
     const physicalKeys = moveKeys.filter(k => k.startsWith('D+'));
     const utilityKeys = moveKeys.filter(k => k.startsWith('W+'));
+    const defenseKeys = moveKeys.filter(k => k.startsWith('A+'));
 
     if (cpuPlayer.faintMeter > 40 && utilityKeys.some(k => availableMoves[k].faintRecovery)) {
       const recKey = utilityKeys.find(k => availableMoves[k].faintRecovery);
       if (recKey) return recKey;
+    }
+
+    // Defensive Guard chance if Opponent has high Chi
+    if (opponentPlayer && opponentPlayer.chi >= 6 && defenseKeys.length > 0 && roll < 0.30) {
+      return defenseKeys[Math.floor(Math.random() * defenseKeys.length)];
     }
 
     if (roll < 0.35 && specialKeys.length > 0 && cpuPlayer.chi >= 5) {
@@ -174,11 +179,11 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
     let score = 0;
     const isD = key.startsWith('D');
     const isS = key.startsWith('S');
+    const isA = key.startsWith('A');
     const cost = m.chiCost || 0;
 
     let evalDamage = m.baseDamage || 0;
     let evalHitChance = m.hitChance || 80;
-    let evalFaintDmg = m.baseFaintDamage || 25;
 
     if (currentChi > 14) {
       evalDamage *= 1.20;
@@ -187,7 +192,6 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
 
     if (oppChi < 5) {
       evalDamage *= 1.25;
-      evalFaintDmg *= 1.25;
     }
 
     const hitRate = evalHitChance / 100;
@@ -204,11 +208,15 @@ window.selectCPUMove = function(cpuPlayer, opponentPlayer, availableMoves, diffi
       score += cost * 12;
     }
 
+    if (isA && oppChi >= 6) {
+      score += 45; // Guard valued against opponents with high special chi
+    }
+
     if (cost === 0 && isD) {
       const chiGain = (m.chiRefundOnHit || 0) + 2;
       score += chiGain * riderProfile.weights.W_CHI;
       if (key !== 'D+J') score += 10;
-    } else if (!isS) {
+    } else if (!isS && !isA) {
       score -= cost * (riderProfile.weights.W_CHI * 0.5);
     }
 
@@ -247,13 +255,13 @@ window.selectCPUMoveAndCharge = function(cpuPlayer, opponentPlayer, slotKey) {
 
   const chosenMoveKey = window.selectCPUMove(cpuPlayer, opponentPlayer, availableMoves, difficulty);
 
-  let targetChargePct = 100;
+  let targetChargePct = 85;
   if (difficulty === 'easy') {
-    targetChargePct = Math.floor(Math.random() * 35) + 55;
-  } else if (difficulty === 'normal') {
-    targetChargePct = Math.floor(Math.random() * 20) + 80;
+    targetChargePct = Math.floor(Math.random() * 16) + 65;
+  } else if (difficulty === 'hard') {
+    targetChargePct = Math.floor(Math.random() * 9) + 92;
   } else {
-    targetChargePct = Math.floor(Math.random() * 10) + 90;
+    targetChargePct = Math.floor(Math.random() * 11) + 80;
   }
 
   return { moveKey: chosenMoveKey, targetChargePct: targetChargePct };
