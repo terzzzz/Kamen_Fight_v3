@@ -347,4 +347,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
   };
 }
 
-window.runBatchSimulation = runBatchSimulation;
+window.runBatchSimulation = runBatchSimulation; 
+
+
