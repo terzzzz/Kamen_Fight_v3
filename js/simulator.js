@@ -50,7 +50,6 @@ function getSimStanceTier(key) {
   return 0;
 }
 
-// Fast heuristic CPU choice for batch simulation to avoid thread locking
 function selectCPUMoveSim(cpu, opp, moves, difficulty) {
   if (cpu.isFainted) return 'DO_NOTHING';
 
@@ -59,21 +58,17 @@ function selectCPUMoveSim(cpu, opp, moves, difficulty) {
 
   if (validKeys.length === 0) return 'DO_NOTHING';
 
-  // Smart Heuristic Weighting
   if (diff === 'hard' || diff === 'normal') {
     const sMoves = validKeys.filter(k => k.startsWith('S'));
     const dMoves = validKeys.filter(k => k.startsWith('D'));
     const aMoves = validKeys.filter(k => k.startsWith('A'));
 
-    // High Chi: favor S Specials
-    if (cpu.chi >= 6 && sMoves.length > 0 && Math.random() < 0.65) {
+    if (cpu.chi >= 6 && sMoves.length > 0 && Math.random() < 0.60) {
       return sMoves[Math.floor(Math.random() * sMoves.length)];
     }
-    // Opponent high Chi: chance to guard
-    if (opp.chi >= 6 && aMoves.length > 0 && Math.random() < 0.40) {
+    if (opp.chi >= 6 && aMoves.length > 0 && Math.random() < 0.35) {
       return aMoves[Math.floor(Math.random() * aMoves.length)];
     }
-    // Standard attack choice
     if (dMoves.length > 0 && Math.random() < 0.70) {
       return dMoves[Math.floor(Math.random() * dMoves.length)];
     }
@@ -155,7 +150,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
 
         let p1GoesFirst = false;
 
-        // RULE A: IDLE ALWAYS GOES LAST
         if (!p1IsIdle && p2IsIdle) {
           p1GoesFirst = true;
         } else if (p1IsIdle && !p2IsIdle) {
@@ -163,7 +157,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
         } else if (p1IsIdle && p2IsIdle) {
           p1GoesFirst = Math.random() < 0.5;
         } else {
-          // RULE B: RANGE PRIORITY -> STANCE SUB-TIER (S > W > D)
           let p1Pri = getSimMovePriority(m1);
           let p2Pri = getSimMovePriority(m2);
 
@@ -190,7 +183,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
 
         let firstInterrupted = false;
 
-        // --- FIRST ATTACKER EXECUTION ---
         first.chi = Math.max(0, first.chi - (mFirst.chiCost || 0));
         if (mFirst.faintRecovery && first.faintMeter > 0) {
           first.faintMeter = Math.max(0, first.faintMeter - mFirst.faintRecovery);
@@ -203,7 +195,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
           let hitChance = mFirst.hitChance || 80;
           if (first.chi > 14) hitChance = Math.min(100, hitChance + 20);
 
-          // IDLE targets are ALWAYS hit with 100% certainty
           let hitRoll = second.isFainted || isSecondIdle || isSecondGuarding || (Math.random() * 100 < hitChance);
 
           if (hitRoll) {
@@ -257,7 +248,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
           }
         }
 
-        // --- SECOND ATTACKER EXECUTION ---
         second.chi = Math.max(0, second.chi - (mSecond.chiCost || 0));
         if (mSecond.faintRecovery && second.faintMeter > 0) {
           second.faintMeter = Math.max(0, second.faintMeter - mSecond.faintRecovery);
@@ -270,7 +260,6 @@ async function runBatchSimulation(p1Rider, p2Rider, count = 50, p1Difficulty = '
           let hitChance = mSecond.hitChance || 80;
           if (second.chi > 14) hitChance = Math.min(100, hitChance + 20);
 
-          // IDLE targets are ALWAYS hit with 100% certainty
           let hitRoll = first.isFainted || isFirstIdle || isFirstGuarding || (Math.random() * 100 < hitChance);
 
           if (hitRoll) {
