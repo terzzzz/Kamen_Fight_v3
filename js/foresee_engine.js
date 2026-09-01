@@ -1,7 +1,6 @@
 /**
- * Shared 3-Turn / 4-Turn Foresee Simulation Engine (Minimax / Expectimax Tree)
+ * Shared 3-Turn Foresee Simulation Engine (Minimax / Expectimax Tree)
  * Path: js/foresee_engine.js
- * Updated with exact Combat Engine EV Expected Value Resolution
  */
 
 (function (window) {
@@ -42,7 +41,6 @@
     } else if (selfPri > oppPri) {
       selfGoesFirst = true;
     } else {
-      // Range Equal: Compare Stance Categories S > W > D
       const selfIsS = selfMoveKey.startsWith('S');
       const oppIsS = oppMoveKey.startsWith('S');
       const selfIsW = selfMoveKey.startsWith('W');
@@ -106,12 +104,10 @@
           expectedDamageMult = probGoodGuard * 0.0 + (1 - probGoodGuard) * 0.50;
           defenderChiReward = probGoodGuard * 2 + (1 - probGoodGuard) * 1;
         } else if (atkButton && defKeyStr === `A+${atkButton}`) {
-          // MATCHED DIRECTIONAL GUARD
           guardWasSuccessful = true;
           expectedDamageMult = probGoodGuard * 0.25 + (1 - probGoodGuard) * 0.70;
           defenderChiReward = probGoodGuard * 4 + (1 - probGoodGuard) * 2;
         } else {
-          // MISMATCHED GUARD (INTERRUPTED, 100% DMG, 0 CHI)
           guardWasSuccessful = false;
           expectedDamageMult = 1.0;
           defenderChiReward = 0;
@@ -122,7 +118,7 @@
 
       let hitRate = 0.80;
       if (step.oppMoveKey === 'DO_NOTHING' || step.oppMove.type === 'IDLE' || isGuarded || step.def.isFainted) {
-        hitRate = 1.0; // Guaranteed hit against Idle/Guard
+        hitRate = 1.0;
       } else {
         hitRate = (step.move.hitChance || 80) / 100;
         if (isFullPowerAtk) hitRate = Math.min(1.0, hitRate + 0.20);
