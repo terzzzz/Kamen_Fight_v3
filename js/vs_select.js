@@ -32,8 +32,10 @@ window.vsSelectionState = window.vsSelectionState || {
 
 /* --- STEP ADVANCEMENT HANDLERS --- */
 
-window.confirmStep = function() {
+window.confirmStep = function(e) {
+  if (e && e.preventDefault) e.preventDefault();
   const state = window.vsSelectionState;
+  
   if (state.step === 1) {
     state.step = 2; // Advance to P2 Selection
   } else if (state.step === 2) {
@@ -42,8 +44,10 @@ window.confirmStep = function() {
   window.updateSelectionUI();
 };
 
-window.goBackStep = function() {
+window.goBackStep = function(e) {
+  if (e && e.preventDefault) e.preventDefault();
   const state = window.vsSelectionState;
+  
   if (state.step === 2) {
     state.step = 1; // Return to P1 Selection
   } else if (state.step === 3) {
@@ -51,6 +55,14 @@ window.goBackStep = function() {
   }
   window.updateSelectionUI();
 };
+
+// Global function aliases for HTML inline onclick handlers
+window.confirmP1 = window.confirmStep;
+window.confirmP2 = window.confirmStep;
+window.confirmSelection = window.confirmStep;
+window.nextStep = window.confirmStep;
+window.confirmP1Selection = window.confirmStep;
+window.confirmP2Selection = window.confirmStep;
 
 /* --- BGM CONTROLLERS --- */
 
@@ -210,7 +222,7 @@ window.updateSelectionUI = function() {
   const p1Card = document.getElementById('p1-card');
   const p2Card = document.getElementById('p2-card');
   const headerText = document.getElementById('select-step-title') || document.getElementById('vs-header-text');
-  const confirmBtn = document.getElementById('confirm-btn');
+  const confirmBtn = document.getElementById('confirm-btn') || document.getElementById('confirm-p1-btn');
   const startBtn = document.getElementById('start-game-btn');
   const backBtn = document.getElementById('back-btn');
 
@@ -236,10 +248,14 @@ window.updateSelectionUI = function() {
 
     if (confirmBtn) {
       confirmBtn.hidden = false;
+      confirmBtn.style.display = 'inline-block';
       confirmBtn.textContent = 'CONFIRM P1';
       confirmBtn.disabled = false;
     }
-    if (startBtn) startBtn.hidden = true;
+    if (startBtn) {
+      startBtn.hidden = true;
+      startBtn.style.display = 'none';
+    }
     if (backBtn) backBtn.disabled = true;
 
   } else if (state.step === 2) {
@@ -254,10 +270,14 @@ window.updateSelectionUI = function() {
 
     if (confirmBtn) {
       confirmBtn.hidden = false;
+      confirmBtn.style.display = 'inline-block';
       confirmBtn.textContent = 'CONFIRM P2';
       confirmBtn.disabled = false;
     }
-    if (startBtn) startBtn.hidden = true;
+    if (startBtn) {
+      startBtn.hidden = true;
+      startBtn.style.display = 'none';
+    }
     if (backBtn) backBtn.disabled = false;
 
   } else if (state.step === 3) {
@@ -270,9 +290,13 @@ window.updateSelectionUI = function() {
     if (p2LeftBtn) p2LeftBtn.disabled = true;
     if (p2RightBtn) p2RightBtn.disabled = true;
 
-    if (confirmBtn) confirmBtn.hidden = true;
+    if (confirmBtn) {
+      confirmBtn.hidden = true;
+      confirmBtn.style.display = 'none';
+    }
     if (startBtn) {
       startBtn.hidden = false;
+      startBtn.style.display = 'inline-block';
       startBtn.disabled = false;
     }
     if (backBtn) backBtn.disabled = false;
@@ -435,6 +459,28 @@ window.validateAndStartMatch = function() {
   }
 };
 
+/* --- GLOBAL EVENT DELEGATION LISTENER --- */
+
+document.addEventListener('click', (e) => {
+  const confirmBtn = e.target.closest('#confirm-btn, #confirm-p1-btn, #confirm-p2-btn, .btn-confirm');
+  if (confirmBtn) {
+    window.confirmStep(e);
+    return;
+  }
+
+  const backBtn = e.target.closest('#back-btn, .btn-back');
+  if (backBtn) {
+    window.goBackStep(e);
+    return;
+  }
+
+  const startBtn = e.target.closest('#start-game-btn, .btn-start');
+  if (startBtn) {
+    window.validateAndStartMatch();
+    return;
+  }
+});
+
 document.addEventListener('DOMContentLoaded', async () => {
   const selectScreen = document.getElementById('vs-select-screen');
   const battleScreen = document.getElementById('battle-screen');
@@ -452,22 +498,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (err) {
     console.warn("Could not load riders.json, defaulting to fallback roster.");
-  }
-
-  // Bind confirmation, navigation, and start buttons
-  const confirmBtn = document.getElementById('confirm-btn');
-  if (confirmBtn) {
-    confirmBtn.addEventListener('click', window.confirmStep);
-  }
-
-  const startBtn = document.getElementById('start-game-btn');
-  if (startBtn) {
-    startBtn.addEventListener('click', window.validateAndStartMatch);
-  }
-
-  const backBtn = document.getElementById('back-btn');
-  if (backBtn) {
-    backBtn.addEventListener('click', window.goBackStep);
   }
 
   window.updateSelectionUI();
