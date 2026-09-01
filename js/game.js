@@ -1,45 +1,36 @@
-/**
- * Core Game Orchestrator, Match Initialization & Media Manager
- * Path: js/game.js
- */
-
-if (!window.gameState) {
-  window.gameState = {
-    roundCounter: 1,
-    roundPhase: 'IDLE',
-    turnTimerSeconds: 8,
-    timerInterval: null,
-    p1Moves: {},
-    p2Moves: {},
-    videoCache: {},
-    p1: null,
-    p2: null,
-    p2AlwaysIdle: false,
-    canContinueFromGameOver: false,
-    p1SelectedMoveKey: null,
-    p2SelectedMoveKey: null,
-    p1IsConfirmed: false,
-    p2IsConfirmed: false,
-    input: {
-      acceptingInputs: false,
-      heldDirection: null,
-      chargeStartTime: 0,
-      currentPercent: 0,
-      isConfirmed: false,
-      selectedMoveKey: null,
-      lockInTime: 0,
-      chargeInterval: null
-    }
-  };
-}
-
-/**
- * Launches a new match given a selection configuration object.
- */
 async function startBattle(matchConfig) {
   if (!window.gameState) window.gameState = {};
+  
+  // Re-initialize input structures to prevent null reference errors
   window.gameState.matchConfig = matchConfig || {};
   if (!window.gameState.videoCache) window.gameState.videoCache = {};
+  
+  window.gameState.p1SelectedMoveKey = null;
+  window.gameState.p2SelectedMoveKey = null;
+  window.gameState.p1IsConfirmed = false;
+  window.gameState.p2IsConfirmed = false;
+  
+  window.gameState.input = {
+    acceptingInputs: false,
+    heldDirection: null,
+    chargeStartTime: 0,
+    currentPercent: 0,
+    isConfirmed: false,
+    selectedMoveKey: null,
+    lockInTime: 0,
+    chargeInterval: null
+  };
+
+  window.gameState.p2Input = {
+    acceptingInputs: false,
+    heldDirection: null,
+    chargeStartTime: 0,
+    currentPercent: 0,
+    isConfirmed: false,
+    selectedMoveKey: null,
+    lockInTime: 0,
+    chargeInterval: null
+  };
 
   const transitionScreen = document.getElementById('match-transition-screen');
   const splashNames = document.getElementById('splash-names-text');
@@ -145,40 +136,3 @@ async function startBattle(matchConfig) {
     }
   }, 1000);
 }
-
-function returnToCharSelect() {
-  if (window.gameState) {
-    window.gameState.roundPhase = 'IDLE';
-    window.gameState.canContinueFromGameOver = false;
-    if (window.gameState.timerInterval) {
-      clearInterval(window.gameState.timerInterval);
-    }
-  }
-
-  if (typeof window.stopBattleBGM === 'function') window.stopBattleBGM();
-  if (typeof window.playSelectionBGM === 'function') window.playSelectionBGM();
-
-  const battleScreen = document.getElementById('battle-screen');
-  const selectScreen = document.getElementById('vs-select-screen');
-  const battleMsg = document.getElementById('battle-message');
-  const actionMsg = document.getElementById('center-action-label');
-
-  if (battleScreen) battleScreen.hidden = true;
-  if (battleMsg) battleMsg.hidden = true;
-  if (actionMsg) actionMsg.hidden = true;
-  if (selectScreen) selectScreen.hidden = false;
-
-  if (window.vsSelectionState) {
-    window.vsSelectionState.step = 1;
-    if (typeof window.updateSelectionUI === 'function') {
-      window.updateSelectionUI();
-    }
-  }
-
-  document.querySelectorAll('.damage-popup').forEach(el => el.remove());
-}
-
-// Global Exports
-window.startBattle = startBattle;
-window.returnToCharSelect = returnToCharSelect;
-window.returnToSelectScreen = returnToCharSelect;
