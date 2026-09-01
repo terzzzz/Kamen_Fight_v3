@@ -211,7 +211,6 @@ window.updateSelectionUI = function() {
 
   const simBtn = document.getElementById('btn-simulate-matches');
 
-  // Keep simulation button available on all character selection steps
   if (simBtn) simBtn.disabled = false;
 
   if (state.step === 1) {
@@ -290,13 +289,11 @@ window.handleSimulateMatches = function(e) {
   const resultsBody = document.getElementById('sim-results-body');
   const modal = document.getElementById('sim-modal');
 
-  // Immediately render loading UI and open modal on character selection screen
   if (resultsBody) {
     resultsBody.innerHTML = `<p class="sim-loading" style="color: #00ffcc; text-align: center; font-family: monospace; padding: 20px;">SIMULATING ${matchCount} MATCHES... PLEASE WAIT...</p>`;
   }
   if (modal) modal.hidden = false;
 
-  // Defer simulation execution slightly to allow DOM modal render
   setTimeout(async () => {
     try {
       const res = await window.runBatchSimulation(p1Rider, p2Rider, matchCount, p1Diff, p2Diff);
@@ -307,7 +304,7 @@ window.handleSimulateMatches = function(e) {
         resultsBody.innerHTML = `
           <div class="sim-summary-header" style="text-align: center; margin-bottom: 15px; font-family: monospace;">
             <p class="sim-matchup-title" style="font-size: 1.1rem; color: #fff;">
-              <strong style="color: #00ffcc;">${res.p1Name} (${p1Diff.toUpperCase()})</strong> VS <strong style="color: #ffaa00;">${res.p2Name} (${p2Diff.toUpperCase()})</strong>
+              <strong style="color: #00ffcc;">${res.p1Name} (${p1Diff.toUpperCase()})</strong> VS <strong style="color: #00ffcc;">${res.p2Name} (${p2Diff.toUpperCase()})</strong>
             </p>
             <p class="sim-winner-announce" style="font-size: 1.2rem; color: #00ffcc; font-weight: bold; margin-top: 5px;">
               OVERALL WINNER: <span style="color: #ffcc00;">${overallWinner.toUpperCase()}</span>
