@@ -52,28 +52,213 @@ var FALLBACK_ICHIGO_MOVES = window.FALLBACK_ICHIGO_MOVES || {
   "A+L": { name: "Side Guard", type: "DEFENSE", chiCost: 0, baseDamage: 0, hitChance: 100, video: "guard.mp4" }
 };
 
-// CPU Visual Button Press Feedback Simulator Hook
+window.cpuChargeIntervals = window.cpuChargeIntervals || {};
+
+/* --- REAL-TIME HUMAN-LIKE CPU TURN ROUTINE WITH 5s FALLBACK --- */
+
+/**
+ * Step 1: At round start, CPU evaluates desired move & target charge %
+ * Step 2: Holds direction button (W, S, D, A) and charges up live on HUD
+ * Step 3: Taps action key to lock in choice
+ * 
+ * Fallback Twist: If Defense ('A+') is chosen or charging stalls past 5.0 seconds,
+ * re-evaluate a non-A skill tree move in milliseconds, charge it, and force-select
+ * at 7.9 seconds to avoid falling idle.
+ */
+window.startCPUTurnRoutine = function(slotKey) {
+  const playerObj = window.gameState ? window.gameState[slotKey] : null;
+  const oppKey = slotKey === 'p1' ? 'p2' : 'p1';
+  const oppObj = window.gameState ? window.gameState[oppKey] : null;
+
+  if (!playerObj || !playerObj.isCPU) return;
+
+  // Clear existing routine timer if active
+  if (window.cpuChargeIntervals[slotKey]) {
+    clearInterval(window.cpuChargeIntervals[slotKey]);
+    window.cpuChargeIntervals[slotKey] = null;
+  }
+
+  // Reset charge state at start of round
+  playerObj.activeChargePercent = 0;
+  syncChargeBarUI(slotKey, 0, '');
+
+  const moves = slotKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
+
+  // Helper: Selects a valid non-Defense move (excluding 'A+' stance tree and 'DO_NOTHING')
+  const getNonDefenseMove = () => {
+    if (!moves) return 'D+J';
+    const validKeys = Object.keys(moves).filter(k => !k.startsWith('A+') && k !== 'DO_NOTHING');
+    if (validKeys.length === 0) return 'D+J';
+    // Filter moves affordable with current Chi
+    const affordable = validKeys.filter(k => (moves[k].chiCost || 0) <= playerObj.chi);
+    const pool = affordable.length > 0 ? affordable : validKeys;
+    return pool[Math.floor(Math.random() * pool.length)];
+  };
+
+  // STEP 1: EVALUATE DESIRED MOVE & TARGET CHARGE % AT ROUND START
+  let moveKey = 'DO_NOTHING';
+  if (typeof window.getCPUMoveChoice === 'function' && oppObj) {
+    moveKey = window.getCPUMoveChoice(playerObj, oppObj, slotKey);
+  }
+
+  if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = moveKey;
+  if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = moveKey;
+
+  if (!moveKey || moveKey === 'DO_NOTHING') {
+    playerObj.activeChargePercent = 0;
+    syncChargeBarUI(slotKey, 0, 'DO_NOTHING');
+    return;
+  }
+
+  let parts = moveKey.split('+');
+  let currentDirKey = parts[0] || '';
+  let currentActKey = parts[1] || '';
+
+  // Calculate Target Charge % based on difficulty
+  const diff = playerObj.difficulty || 'normal';
+  const baseTarget = diff === 'hard' ? 95 : (diff === 'easy' ? 70 : 85);
+  const variance = Math.floor(Math.random() * 11) - 5; // -5% to +5%
+  let targetChargePct = Math.min(100, Math.max(25, baseTarget + variance));
+
+  const startTime = Date.now();
+  let hasReevaluatedAt5s = false;
+
+  // STEP 2: HOLD DIRECTION BUTTON & CHARGE LIVE
+  if (currentDirKey) {
+    simulateCPUDirectionButton(slotKey, currentDirKey, true);
+  }
+
+  const chargeTimes = window.CHARGE_TIMES || { W: 3500, A: 2200, S: 4200, D: 3000 };
+  const intervalMs = 50;
+
+  window.cpuChargeIntervals[slotKey] = setInterval(() => {
+    if (!window.gameState || window.gameState.roundPhase !== 'INPUT') {
+      clearInterval(window.cpuChargeIntervals[slotKey]);
+      window.cpuChargeIntervals[slotKey] = null;
+      if (currentDirKey) simulateCPUDirectionButton(slotKey, currentDirKey, false);
+      return;
+    }
+
+    const elapsedSec = (Date.now() - startTime) / 1000.0;
+
+    // --- FALLBACK TWIST: TIMER PASSED 5 SECONDS & DEFENSE / UNCONFIRMED ---
+    if (elapsedSec >= 5.0 && !hasReevaluatedAt5s && (currentDirKey === 'A' || playerObj.activeChargePercent < targetChargePct)) {
+      hasReevaluatedAt5s = true;
+
+      // Release previous directional key
+      if (currentDirKey) simulateCPUDirectionButton(slotKey, currentDirKey, false);
+
+      // Immediately evaluate non-A skill tree move
+      moveKey = getNonDefenseMove();
+      parts = moveKey.split('+');
+      currentDirKey = parts[0];
+      currentActKey = parts[1];
+
+      if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = moveKey;
+      if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = moveKey;
+
+      // Start holding new direction button
+      simulateCPUDirectionButton(slotKey, currentDirKey, true);
+    }
+
+    // Charge Increment Calculation
+    const totalChargeMs = chargeTimes[currentDirKey] || 3000;
+    const pctIncrement = (intervalMs / totalChargeMs) * 100;
+    playerObj.activeChargePercent = (playerObj.activeChargePercent || 0) + pctIncrement;
+    const currentPct = Math.min(100, Math.round(playerObj.activeChargePercent));
+
+    // Live update bottom HUD charge bar
+    syncChargeBarUI(slotKey, currentPct, moveKey);
+
+    // --- FORCE SELECT AT 7.9 SECONDS TO PREVENT IDLE ---
+    if (elapsedSec >= 7.9) {
+      clearInterval(window.cpuChargeIntervals[slotKey]);
+      window.cpuChargeIntervals[slotKey] = null;
+
+      const finalPct = Math.max(25, currentPct);
+      playerObj.activeChargePercent = finalPct;
+
+      if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = moveKey;
+      if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = moveKey;
+
+      if (currentDirKey) simulateCPUDirectionButton(slotKey, currentDirKey, false);
+      if (currentActKey) simulateCPUActionButton(slotKey, currentActKey);
+      syncChargeBarUI(slotKey, finalPct, moveKey, true);
+      return;
+    }
+
+    // STEP 3: STANDARD CONFIRMATION BEFORE 7.9s
+    if (currentPct >= targetChargePct && currentDirKey !== 'A') {
+      clearInterval(window.cpuChargeIntervals[slotKey]);
+      window.cpuChargeIntervals[slotKey] = null;
+
+      playerObj.activeChargePercent = currentPct;
+      if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = moveKey;
+      if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = moveKey;
+
+      simulateCPUDirectionButton(slotKey, currentDirKey, false);
+      simulateCPUActionButton(slotKey, currentActKey);
+      syncChargeBarUI(slotKey, currentPct, moveKey, true);
+    }
+  }, intervalMs);
+};
+
+/* Visual Button Press Simulators */
+
+function simulateCPUDirectionButton(slotKey, dirKey, isPressed) {
+  const prefix = slotKey === 'p1' ? 'key-' : 'p2-key-';
+  const btn = document.getElementById(`${prefix}${dirKey}`);
+  if (btn) {
+    if (isPressed) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  }
+}
+
+function simulateCPUActionButton(slotKey, actKey) {
+  const prefix = slotKey === 'p1' ? 'key-' : 'p2-key-';
+  const btn = document.getElementById(`${prefix}${actKey}`);
+  if (btn) {
+    btn.classList.add('active');
+    setTimeout(() => btn.classList.remove('active'), 300);
+  }
+}
+
 if (typeof window.simulateCPUButtonPress !== 'function') {
   window.simulateCPUButtonPress = function(moveKey, slotKey) {
     if (!moveKey || moveKey === 'DO_NOTHING') return;
     const parts = moveKey.split('+');
     if (parts.length === 2) {
-      const prefix = slotKey === 'p1' ? 'key-' : 'p2-key-';
-      const dirBtn = document.getElementById(`${prefix}${parts[0]}`);
-      const actBtn = document.getElementById(`${prefix}${parts[1]}`);
-      if (dirBtn) {
-        dirBtn.classList.add('active');
-        setTimeout(() => dirBtn.classList.remove('active'), 300);
-      }
-      if (actBtn) {
-        actBtn.classList.add('active');
-        setTimeout(() => actBtn.classList.remove('active'), 300);
-      }
+      simulateCPUDirectionButton(slotKey, parts[0], true);
+      setTimeout(() => simulateCPUDirectionButton(slotKey, parts[0], false), 300);
+      simulateCPUActionButton(slotKey, parts[1]);
     }
   };
 }
 
 /* --- VISUAL EFFECTS & HUD HELPERS --- */
+
+function syncChargeBarUI(slotKey, percent, moveKey, isLocked = false) {
+  const fillEl = document.getElementById(`${slotKey}-charge-fill`);
+  const textEl = document.getElementById(`${slotKey}-charge-text`);
+  const roundedPct = Math.min(100, Math.max(0, Math.round(percent)));
+  const dirPrefix = (typeof moveKey === 'string' && moveKey.includes('+')) ? moveKey.split('+')[0] : '';
+
+  if (fillEl) {
+    fillEl.style.width = `${roundedPct}%`;
+    if (isLocked) fillEl.classList.add('locked');
+    else fillEl.classList.remove('locked');
+  }
+  if (textEl) {
+    if (isLocked) {
+      textEl.textContent = dirPrefix ? `CHARGING [${dirPrefix}]: ${roundedPct}%` : `LOCKED: ${roundedPct}%`;
+    } else {
+      textEl.textContent = dirPrefix ? `CHARGING [${dirPrefix}]: ${roundedPct}%` : `${roundedPct}%`;
+    }
+  }
+}
 
 function triggerLPFlash(slotKey, isHeal = false) {
   const lpContainer = document.getElementById(`${slotKey}-lp`);
@@ -245,7 +430,6 @@ function getMoveRangePriority(move) {
   return 1;
 }
 
-// Helper for Stance Sub-Tier: S (3) > W (2) > D (1) > A/Idle (0)
 function getMoveStanceTier(moveKey) {
   if (typeof moveKey !== 'string') return 0;
   if (moveKey.startsWith('S')) return 3;
@@ -276,7 +460,7 @@ async function applyFaintBuildUp(player, playerKey, customAmount = null) {
 
   if (player.faintMeter >= rules.FAINT_THRESHOLD) {
     player.isFainted = true;
-    player.justFainted = true; // Marks faint was triggered this turn
+    player.justFainted = true;
 
     const stunOverlay = document.getElementById(`${playerKey}-stun-overlay`);
     if (stunOverlay) stunOverlay.hidden = false;
@@ -349,26 +533,22 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
         damageRatio = 0.0;
         chiGained = 2;
       } else {
-        guardSuccess = true; // Special Guard prevents action interruption even on bad roll
-        damageRatio = 0.50; // Takes 50% damage on bad roll
+        guardSuccess = true;
+        damageRatio = 0.50;
         chiGained = 1;
       }
     } else if (atkButton && defKeyStr === `A+${atkButton}`) {
-      // MATCHED DIRECTIONAL GUARD
       isMatchingGuard = true;
-      guardSuccess = true; // Prevents interruption on both Good and Bad matched scenarios
+      guardSuccess = true;
 
       if (Math.random() * 100 < effectiveGuardChance) {
-        // GOOD SCENARIO: Takes 25% damage (75% reduced), +4 Chi Reward
         damageRatio = 0.25;
         chiGained = 4;
       } else {
-        // BAD SCENARIO: Takes 70% damage (30% reduced), +2 Chi Reward
         damageRatio = 0.70;
         chiGained = 2;
       }
     } else {
-      // MISMATCHED GUARD BUTTON: Guard Failure (Full 100% damage, Interrupted, 0 Chi)
       isMatchingGuard = false;
       guardSuccess = false;
       damageRatio = 1.0;
@@ -384,13 +564,11 @@ function resolveAttack(attacker, defender, atkMove, atkMoveKey, defMove, defMove
     rolledHit = true;
     isGlancing = false;
   } else if (isTargetIdle) {
-    // RULE A: Any attack hits an IDLE target with 100% certainty (no misses or glancing hits)
     rolledHit = true;
     isGlancing = false;
   } else if (isGuarding) {
     rolledHit = true;
   } else {
-    // Standard Hit Chance RNG calculation against active non-idle targets
     let baseHitChance = atkMove.hitChance || 80;
 
     let isDOrS = atkKeyStr.startsWith('D') || atkKeyStr.startsWith('S') || atkMove.category === 'D' || atkMove.category === 'S' || atkMove.tier === 'S';
@@ -480,57 +658,41 @@ async function executeTurnResolutionPhase() {
   const p1StartFaint = window.gameState.p1.faintMeter;
   const p2StartFaint = window.gameState.p2.faintMeter;
 
-  let p1MoveKey = null;
-  let p2MoveKey = null;
+  let p1MoveKey = window.gameState.p1SelectedMoveKey;
+  let p2MoveKey = window.gameState.p2SelectedMoveKey;
 
-  if (window.gameState.p1.isCPU && window.gameState.p2.isCPU) {
-    if (Math.random() < 0.5) {
-      p1MoveKey = window.getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1');
-      p2MoveKey = window.getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2');
-    } else {
-      p2MoveKey = window.getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2');
-      p1MoveKey = window.getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1');
+  // Fallback safety if CPU routine was skipped
+  if (window.gameState.p1.isCPU && (!p1MoveKey || p1MoveKey === 'DO_NOTHING')) {
+    p1MoveKey = window.getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1');
+    if (window.gameState.p1.activeChargePercent === undefined || window.gameState.p1.activeChargePercent === 0) {
+      window.gameState.p1.activeChargePercent = 85;
     }
+  }
 
-    window.gameState.p1SelectedMoveKey = p1MoveKey;
-    window.gameState.p2SelectedMoveKey = p2MoveKey;
-  } else {
-    if (window.gameState.p1.isCPU) {
-      p1MoveKey = window.getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1');
-    } else {
-      p1MoveKey = window.gameState.input ? window.gameState.input.selectedMoveKey : null;
-      if (window.gameState.p1.activeChargePercent === undefined) {
-        window.gameState.p1.activeChargePercent = (window.gameState.input && typeof window.gameState.input.currentPercent === 'number' && window.gameState.input.currentPercent > 0) ? window.gameState.input.currentPercent : 100;
-      }
-    }
-
-    p2MoveKey = window.gameState.p2AlwaysIdle ? 'DO_NOTHING' : window.gameState.p2SelectedMoveKey;
-    if (!p2MoveKey && window.gameState.p2.isCPU && !window.gameState.p2AlwaysIdle) {
-      p2MoveKey = window.getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2');
-    } else if (!window.gameState.p2.isCPU && window.gameState.p2.activeChargePercent === undefined) {
-      window.gameState.p2.activeChargePercent = typeof window.gameState.p2ChargePercent === 'number' ? window.gameState.p2ChargePercent : 100;
+  if (window.gameState.p2.isCPU && (!p2MoveKey || p2MoveKey === 'DO_NOTHING') && !window.gameState.p2AlwaysIdle) {
+    p2MoveKey = window.getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2');
+    if (window.gameState.p2.activeChargePercent === undefined || window.gameState.p2.activeChargePercent === 0) {
+      window.gameState.p2.activeChargePercent = 85;
     }
   }
 
   if (!p1MoveKey) p1MoveKey = 'DO_NOTHING';
   if (!p2MoveKey) p2MoveKey = 'DO_NOTHING';
 
-  if (window.gameState.p1.isCPU && p1MoveKey !== 'DO_NOTHING' && typeof window.simulateCPUButtonPress === 'function') {
-    window.simulateCPUButtonPress(p1MoveKey, 'p1');
-  }
-  if (window.gameState.p2.isCPU && !window.gameState.p2AlwaysIdle && p2MoveKey !== 'DO_NOTHING' && typeof window.simulateCPUButtonPress === 'function') {
-    window.simulateCPUButtonPress(p2MoveKey, 'p2');
-  }
-
   let p1Move = getMoveForPlayer('p1', p1MoveKey);
   let p2Move = getMoveForPlayer('p2', p2MoveKey);
+
+  const p1Charge = window.gameState.p1.activeChargePercent !== undefined ? window.gameState.p1.activeChargePercent : 100;
+  const p2Charge = window.gameState.p2.activeChargePercent !== undefined ? window.gameState.p2.activeChargePercent : 100;
+
+  // Lock and display exact final charge %
+  syncChargeBarUI('p1', p1Charge, p1MoveKey, true);
+  syncChargeBarUI('p2', p2Charge, p2MoveKey, true);
 
   const battleMsg = document.getElementById('battle-message');
   if (battleMsg) {
     battleMsg.hidden = false;
-    const p1Charge = window.gameState.p1.activeChargePercent !== undefined ? window.gameState.p1.activeChargePercent : 100;
-    const p2Charge = window.gameState.p2.activeChargePercent !== undefined ? window.gameState.p2.activeChargePercent : 100;
-    battleMsg.innerHTML = `P1: ${p1Move.name} (${p1Charge}%) VS P2: ${p2Move.name} (${p2Charge}%)`;
+    battleMsg.innerHTML = `P1: ${p1Move.name} (${Math.round(p1Charge)}%) VS P2: ${p2Move.name} (${Math.round(p2Charge)}%)`;
   }
 
   setSideBoxesBlank(true);
@@ -539,34 +701,26 @@ async function executeTurnResolutionPhase() {
   let p2IsIdle = p2MoveKey === 'DO_NOTHING' || p2Move.type === 'IDLE';
   let p1GoesFirst = false;
 
-  // RULE A: Idle action always goes last
   if (!p1IsIdle && p2IsIdle) {
     p1GoesFirst = true;
   } else if (p1IsIdle && !p2IsIdle) {
     p1GoesFirst = false;
   } else if (p1IsIdle && p2IsIdle) {
-    // Both IDLE: Pick winner randomly
     p1GoesFirst = Math.random() < 0.5;
   } else {
-    // RULE B: Range Priority Hierarchy (3: Projectile > 2: Reach/Rope/Mid-Range > 1: Melee)
     let p1Range = getMoveRangePriority(p1Move);
     let p2Range = getMoveRangePriority(p2Move);
 
     if (p1Range !== p2Range) {
       p1GoesFirst = p1Range > p2Range;
     } else {
-      // Same Range Tier -> Sub-hierarchy: S (3) > W (2) > D (1)
       let p1Stance = getMoveStanceTier(p1MoveKey);
       let p2Stance = getMoveStanceTier(p2MoveKey);
 
       if (p1Stance !== p2Stance) {
         p1GoesFirst = p1Stance > p2Stance;
       } else {
-        // Same Range AND Same Stance -> Dynamic Stance-Based Elapsed Charge Time Tie-Breaker
         const chargeTimes = window.CHARGE_TIMES || { W: 3500, A: 2200, S: 4200, D: 3000 };
-
-        let p1Charge = window.gameState.p1.activeChargePercent !== undefined ? window.gameState.p1.activeChargePercent : 100;
-        let p2Charge = window.gameState.p2.activeChargePercent !== undefined ? window.gameState.p2.activeChargePercent : 100;
 
         let p1Dir = (typeof p1MoveKey === 'string' && p1MoveKey.includes('+')) ? p1MoveKey.split('+')[0] : 'D';
         let p2Dir = (typeof p2MoveKey === 'string' && p2MoveKey.includes('+')) ? p2MoveKey.split('+')[0] : 'D';
@@ -575,7 +729,7 @@ async function executeTurnResolutionPhase() {
         let p2Elapsed = (p2Charge / 100) * ((chargeTimes[p2Dir] || 3000) / 1000);
 
         if (p1Elapsed !== p2Elapsed) {
-          p1GoesFirst = p1Elapsed < p2Elapsed; // Faster charge elapsed time strikes first
+          p1GoesFirst = p1Elapsed < p2Elapsed;
         } else {
           p1GoesFirst = Math.random() < 0.5;
         }
@@ -678,13 +832,11 @@ async function executeTurnResolutionPhase() {
             await applyFaintBuildUp(defender1, defKey1, getFaintDamageForMove(move1));
           }
         } else if (!result.hitLanded) {
-          // COMPLETE MISS: 0 Chi Gain, Play Dodge Animation
           if (typeof window.playCenterVideo === 'function') {
             await window.playCenterVideo(defKey1, 'dodge.mp4', 'DODGED!');
           }
           triggerFloatingText(defKey1, 'MISS!!', 'miss');
         } else if (result.isGlancing) {
-          // GLANCING HIT / SCRATCH: Play Hit animation & DO NOT award Chi Gain
           if (typeof window.playCenterVideo === 'function') {
             await window.playCenterVideo(defKey1, 'hit_physical.mp4', 'SCRATCH!');
           }
@@ -698,7 +850,6 @@ async function executeTurnResolutionPhase() {
 
           await applyFaintBuildUp(defender1, defKey1, 10);
         } else {
-          // CLEAN HIT: Award Chi Gain here ONLY
           defender1WasInterrupted = true;
 
           const hitVid = (typeof key1 === 'string' && key1.startsWith('S')) ? 'hit.mp4' : 'hit_physical.mp4';
@@ -787,13 +938,11 @@ async function executeTurnResolutionPhase() {
           await applyFaintBuildUp(defender2, defKey2, getFaintDamageForMove(move2));
         }
       } else if (!result.hitLanded) {
-        // COMPLETE MISS: 0 Chi Gain, Play Dodge Animation
         if (typeof window.playCenterVideo === 'function') {
           await window.playCenterVideo(defKey2, 'dodge.mp4', 'DODGED!');
         }
         triggerFloatingText(defKey2, 'MISS!!', 'miss');
       } else if (result.isGlancing) {
-        // GLANCING HIT / SCRATCH: Play Hit animation & DO NOT award Chi Gain
         if (typeof window.playCenterVideo === 'function') {
           await window.playCenterVideo(defKey2, 'hit_physical.mp4', 'SCRATCH!');
         }
@@ -807,7 +956,6 @@ async function executeTurnResolutionPhase() {
 
         await applyFaintBuildUp(defender2, defKey2, 10);
       } else {
-        // CLEAN HIT: Award Chi Gain here ONLY
         const hitVid = (typeof key2 === 'string' && key2.startsWith('S')) ? 'hit.mp4' : 'hit_physical.mp4';
         if (typeof window.playCenterVideo === 'function') {
           await window.playCenterVideo(defKey2, hitVid, 'TAKING DAMAGE');
@@ -843,7 +991,6 @@ async function executeTurnResolutionPhase() {
     triggerFloatingText(atkKey2, 'INTERRUPTED!', 'scratch');
   }
 
-  // Allow HUD popups to display before resetting UI
   await new Promise(r => setTimeout(r, 800));
 
   if (typeof window.hideCenterScreen === 'function') window.hideCenterScreen();
@@ -887,16 +1034,13 @@ async function executeTurnResolutionPhase() {
   processRoundBuffs(window.gameState.p1);
   processRoundBuffs(window.gameState.p2);
 
-  // --- FAINT STATE RECOVERY & METER DECAY HANDLER ---
   ['p1', 'p2'].forEach(slot => {
     const player = window.gameState[slot];
     if (player) {
       if (player.isFainted) {
         if (player.justFainted) {
-          // Player fainted during this round; clear flag so they serve next round fainted
           player.justFainted = false;
         } else {
-          // Fainted turn has been served; wake player up and reset faint state
           player.isFainted = false;
           player.faintMeter = 0;
 
@@ -917,13 +1061,11 @@ async function executeTurnResolutionPhase() {
   if (window.gameState.p1.lp > 0 && window.gameState.p2.lp > 0) {
     window.gameState.roundCounter++;
     
-    // Explicitly transition to INPUT phase before launching timer
     window.gameState.roundPhase = 'INPUT';
     if (typeof window.launchRoundTimer === 'function') window.launchRoundTimer();
 
     if (window.gameState.p1.isCPU && window.gameState.p2.isCPU) {
       setTimeout(() => {
-        // Safe auto-advance trigger for CPU vs CPU
         if (window.gameState.roundPhase === 'INPUT' || window.gameState.roundPhase === 'RESOLUTION') {
           executeTurnResolutionPhase();
         }
