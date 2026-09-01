@@ -7,6 +7,12 @@ window.selectionBGM = window.selectionBGM || null;
 window.battleBGM = window.battleBGM || null;
 window.currentVolume = typeof window.currentVolume === 'number' ? window.currentVolume : 0.5;
 
+const DIFF_LABELS = {
+  easy: 'NOVICE',
+  normal: 'BALANCED',
+  hard: 'AGGRESSIVE'
+};
+
 window.AVAILABLE_RIDERS = window.AVAILABLE_RIDERS || [
   { id: 'ichigo', name: 'Kamen Rider Ichigo', icon: 'assets/images/icons/ichigo.png', maxLp: 2300 },
   { id: 'nigo', name: 'Kamen Rider Nigo', icon: 'assets/images/icons/nigo.png', maxLp: 2500 },
@@ -119,28 +125,6 @@ window.toggleDifficulty = function(playerKey) {
   window.updateSelectionUI();
 };
 
-window.handleConfirmStep = function() {
-  const errorBanner = document.getElementById('vs-error-banner');
-  if (errorBanner) errorBanner.hidden = true;
-
-  if (window.vsSelectionState.step === 1) {
-    window.vsSelectionState.step = 2;
-  } else if (window.vsSelectionState.step === 2) {
-    window.vsSelectionState.step = 3;
-  }
-  window.updateSelectionUI();
-};
-
-window.handleBackStep = function() {
-  const errorBanner = document.getElementById('vs-error-banner');
-  if (errorBanner) errorBanner.hidden = true;
-
-  if (window.vsSelectionState.step > 1) {
-    window.vsSelectionState.step--;
-  }
-  window.updateSelectionUI();
-};
-
 window.updateSelectionUI = function() {
   const riders = window.AVAILABLE_RIDERS;
   const state = window.vsSelectionState;
@@ -167,7 +151,7 @@ window.updateSelectionUI = function() {
       p1DiffDisplay.textContent = 'N/A';
       p1DiffDisplay.classList.remove('hard', 'easy');
     } else {
-      p1DiffDisplay.textContent = state.p1Difficulty.toUpperCase();
+      p1DiffDisplay.textContent = DIFF_LABELS[state.p1Difficulty] || 'BALANCED';
       p1DiffDisplay.classList.toggle('hard', state.p1Difficulty === 'hard');
       p1DiffDisplay.classList.toggle('easy', state.p1Difficulty === 'easy');
     }
@@ -191,7 +175,7 @@ window.updateSelectionUI = function() {
       p2DiffDisplay.textContent = 'N/A';
       p2DiffDisplay.classList.remove('hard', 'easy');
     } else {
-      p2DiffDisplay.textContent = state.p2Difficulty.toUpperCase();
+      p2DiffDisplay.textContent = DIFF_LABELS[state.p2Difficulty] || 'BALANCED';
       p2DiffDisplay.classList.toggle('hard', state.p2Difficulty === 'hard');
       p2DiffDisplay.classList.toggle('easy', state.p2Difficulty === 'easy');
     }
@@ -277,7 +261,6 @@ window.handleSimulateMatches = function(e) {
     return;
   }
 
-  // 1. Ensure modal container exists in DOM (auto-creates if missing from index.html)
   let modal = document.getElementById('sim-modal');
   if (!modal) {
     modal = document.createElement('div');
@@ -310,7 +293,6 @@ window.handleSimulateMatches = function(e) {
     content.insertBefore(resultsBody, content.firstChild);
   }
 
-  // 2. Open Modal Immediately
   modal.hidden = false;
   modal.style.display = 'flex';
 
@@ -331,7 +313,6 @@ window.handleSimulateMatches = function(e) {
     </p>
   `;
 
-  // 3. Execute Simulation in Async Timeout to Allow DOM Render
   setTimeout(async () => {
     try {
       const res = await window.runBatchSimulation(
@@ -353,7 +334,7 @@ window.handleSimulateMatches = function(e) {
       resultsBody.innerHTML = `
         <div class="sim-summary-header" style="text-align: center; margin-bottom: 15px; font-family: monospace;">
           <p class="sim-matchup-title" style="font-size: 1.1rem; color: #fff;">
-            <strong style="color: #00ffcc;">${res.p1Name} (${p1Diff.toUpperCase()})</strong> VS <strong style="color: #00ffcc;">${res.p2Name} (${p2Diff.toUpperCase()})</strong>
+            <strong style="color: #00ffcc;">${res.p1Name} (${(DIFF_LABELS[p1Diff] || p1Diff).toUpperCase()})</strong> VS <strong style="color: #00ffcc;">${res.p2Name} (${(DIFF_LABELS[p2Diff] || p2Diff).toUpperCase()})</strong>
           </p>
           <p class="sim-winner-announce" style="font-size: 1.2rem; color: #00ffcc; font-weight: bold; margin-top: 5px;">
             OVERALL WINNER: <span style="color: #ffcc00;">${overallWinner.toUpperCase()}</span>
@@ -449,7 +430,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   window.updateSelectionUI();
 
-  // Attach listener to all potential button IDs across versions
   ['btn-simulate-matches', 'btn-simulate', 'simulate-btn'].forEach(id => {
     const simBtn = document.getElementById(id);
     if (simBtn) {
