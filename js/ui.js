@@ -39,7 +39,7 @@ function updatePlayerHUD(slotKey, playerObj) {
     chiBarFillEl.style.width = `${chiPct}%`;
   }
 
-  const normalColor = isP1 ? '#00ffcc' : '#00bfff';
+  const normalColor = '#00ffcc';
 
   if (chi < 5) {
     if (chiEl) {
