@@ -30,6 +30,30 @@ window.vsSelectionState = window.vsSelectionState || {
   p2Difficulty: 'normal'
 };
 
+/* --- STEP ADVANCEMENT HANDLERS --- */
+
+window.confirmStep = function() {
+  const state = window.vsSelectionState;
+  if (state.step === 1) {
+    state.step = 2; // Advance to P2 Selection
+  } else if (state.step === 2) {
+    state.step = 3; // Advance to Ready For Battle
+  }
+  window.updateSelectionUI();
+};
+
+window.goBackStep = function() {
+  const state = window.vsSelectionState;
+  if (state.step === 2) {
+    state.step = 1; // Return to P1 Selection
+  } else if (state.step === 3) {
+    state.step = 2; // Return to P2 Selection
+  }
+  window.updateSelectionUI();
+};
+
+/* --- BGM CONTROLLERS --- */
+
 window.changeBGMVolume = function(val) {
   window.currentVolume = parseFloat(val);
   if (window.selectionBGM) window.selectionBGM.volume = window.currentVolume;
@@ -85,6 +109,8 @@ window.stopBattleBGM = function() {
     window.battleBGM = null;
   }
 };
+
+/* --- SELECTION CONTROLS --- */
 
 window.cycleRider = function(playerKey, direction) {
   const riders = window.AVAILABLE_RIDERS;
@@ -426,6 +452,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (err) {
     console.warn("Could not load riders.json, defaulting to fallback roster.");
+  }
+
+  // Bind confirmation, navigation, and start buttons
+  const confirmBtn = document.getElementById('confirm-btn');
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', window.confirmStep);
+  }
+
+  const startBtn = document.getElementById('start-game-btn');
+  if (startBtn) {
+    startBtn.addEventListener('click', window.validateAndStartMatch);
+  }
+
+  const backBtn = document.getElementById('back-btn');
+  if (backBtn) {
+    backBtn.addEventListener('click', window.goBackStep);
   }
 
   window.updateSelectionUI();
