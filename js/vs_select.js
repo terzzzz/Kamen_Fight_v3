@@ -209,9 +209,10 @@ window.updateSelectionUI = function() {
   const p2LeftBtn = document.getElementById('p2-left-btn');
   const p2RightBtn = document.getElementById('p2-right-btn');
 
-  const simBtn = document.getElementById('btn-simulate-matches');
-
-  if (simBtn) simBtn.disabled = false;
+  ['btn-simulate-matches', 'btn-simulate', 'simulate-btn'].forEach(id => {
+    const simBtn = document.getElementById(id);
+    if (simBtn) simBtn.disabled = false;
+  });
 
   if (state.step === 1) {
     if (headerText) headerText.textContent = 'STEP 1: SELECT PLAYER 1 RIDER';
@@ -272,85 +273,130 @@ window.handleSimulateMatches = function(e) {
   if (e && e.preventDefault) e.preventDefault();
 
   if (typeof window.runBatchSimulation !== 'function') {
-    alert('Simulation engine (js/simulator.js) is not loaded!');
+    alert('Simulation engine (js/simulator.js) is not loaded! Make sure <script src="js/simulator.js"></script> is included in index.html.');
     return;
   }
 
-  const riders = window.AVAILABLE_RIDERS;
-  const state = window.vsSelectionState;
-  const p1Rider = riders[state.p1Index] || riders[0];
-  const p2Rider = riders[state.p2Index] || riders[0];
+  // 1. Ensure modal container exists in DOM (auto-creates if missing from index.html)
+  let modal = document.getElementById('sim-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'sim-modal';
+    modal.className = 'sim-modal';
+    modal.innerHTML = `
+      <div class="sim-modal-content">
+        <div id="sim-results-body"></div>
+        <div style="text-align: center; margin-top: 15px;">
+          <button id="btn-close-sim-modal" class="action-btn">CLOSE</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const closeBtn = modal.querySelector('#btn-close-sim-modal');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        modal.hidden = true;
+        modal.style.display = 'none';
+      });
+    }
+  }
+
+  let resultsBody = document.getElementById('sim-results-body');
+  if (!resultsBody) {
+    const content = modal.querySelector('.sim-modal-content') || modal;
+    resultsBody = document.createElement('div');
+    resultsBody.id = 'sim-results-body';
+    content.insertBefore(resultsBody, content.firstChild);
+  }
+
+  // 2. Open Modal Immediately
+  modal.hidden = false;
+  modal.style.display = 'flex';
+
+  const riders = window.AVAILABLE_RIDERS || [];
+  const state = window.vsSelectionState || { p1Index: 0, p2Index: 1, p1Difficulty: 'normal', p2Difficulty: 'normal' };
+  const p1Rider = riders[state.p1Index] || riders[0] || { id: 'ichigo', name: 'Ichigo' };
+  const p2Rider = riders[state.p2Index] || riders[0] || { id: 'nigo', name: 'Nigo' };
 
   const countSelect = document.getElementById('sim-count-select');
   const matchCount = countSelect ? parseInt(countSelect.value, 10) : 20;
   const p1Diff = state.p1Difficulty || 'normal';
   const p2Diff = state.p2Difficulty || 'normal';
 
-  const resultsBody = document.getElementById('sim-results-body');
-  const modal = document.getElementById('sim-modal');
+  resultsBody.innerHTML = `
+    <p class="sim-loading" style="color: #00ffcc; text-align: center; font-family: monospace; padding: 20px; font-size: 1.1rem;">
+      SIMULATING ${matchCount} MATCHES... PLEASE WAIT...<br>
+      <span style="font-size: 0.85rem; color: #aaa; margin-top: 5px; display: inline-block;">(${p1Rider.name} vs ${p2Rider.name})</span>
+    </p>
+  `;
 
-  if (resultsBody) {
-    resultsBody.innerHTML = `<p class="sim-loading" style="color: #00ffcc; text-align: center; font-family: monospace; padding: 20px;">SIMULATING ${matchCount} MATCHES... PLEASE WAIT...</p>`;
-  }
-  if (modal) modal.hidden = false;
-
+  // 3. Execute Simulation in Async Timeout to Allow DOM Render
   setTimeout(async () => {
     try {
-      const res = await window.runBatchSimulation(p1Rider, p2Rider, matchCount, p1Diff, p2Diff);
+      const res = await window.runBatchSimulation(
+        p1Rider,
+        p2Rider,
+        matchCount,
+        p1Diff,
+        p2Diff,
+        (current, total) => {
+          const loadingEl = resultsBody.querySelector('.sim-loading');
+          if (loadingEl) {
+            loadingEl.innerHTML = `SIMULATING MATCH ${current} / ${total}...<br><span style="font-size: 0.85rem; color: #aaa; margin-top: 5px; display: inline-block;">(${p1Rider.name} vs ${p2Rider.name})</span>`;
+          }
+        }
+      );
 
-      if (resultsBody) {
-        const overallWinner = res.p1Wins > res.p2Wins ? res.p1Name : (res.p2Wins > res.p1Wins ? res.p2Name : 'TIE MATCH');
+      const overallWinner = res.p1Wins > res.p2Wins ? res.p1Name : (res.p2Wins > res.p1Wins ? res.p2Name : 'TIE MATCH');
 
-        resultsBody.innerHTML = `
-          <div class="sim-summary-header" style="text-align: center; margin-bottom: 15px; font-family: monospace;">
-            <p class="sim-matchup-title" style="font-size: 1.1rem; color: #fff;">
-              <strong style="color: #00ffcc;">${res.p1Name} (${p1Diff.toUpperCase()})</strong> VS <strong style="color: #00ffcc;">${res.p2Name} (${p2Diff.toUpperCase()})</strong>
-            </p>
-            <p class="sim-winner-announce" style="font-size: 1.2rem; color: #00ffcc; font-weight: bold; margin-top: 5px;">
-              OVERALL WINNER: <span style="color: #ffcc00;">${overallWinner.toUpperCase()}</span>
-            </p>
-          </div>
-          <table class="sim-table" style="width: 100%; border-collapse: collapse; font-family: monospace; font-size: 14px; text-align: left;">
-            <thead>
-              <tr style="border-bottom: 2px solid #00ffcc; color: #00ffcc;">
-                <th style="padding: 8px;">STATISTIC</th>
-                <th style="padding: 8px; text-align: center;">${res.p1Name.toUpperCase()}</th>
-                <th style="padding: 8px; text-align: center;">${res.p2Name.toUpperCase()}</th>
-              </tr>
-            </thead>
-            <tbody style="color: #fff;">
-              <tr style="border-bottom: 1px solid #333;">
-                <td style="padding: 8px;">Victories (Win Rate)</td>
-                <td style="padding: 8px; text-align: center;"><strong>${res.p1Wins}</strong> (${res.p1WinRate}%)</td>
-                <td style="padding: 8px; text-align: center;"><strong>${res.p2Wins}</strong> (${res.p2WinRate}%)</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #333;">
-                <td style="padding: 8px;">Avg. LP Remaining</td>
-                <td style="padding: 8px; text-align: center;">${res.p1AvgLpLeft} LP</td>
-                <td style="padding: 8px; text-align: center;">${res.p2AvgLpLeft} LP</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #333;">
-                <td style="padding: 8px;">Avg. Chi Remaining</td>
-                <td style="padding: 8px; text-align: center;">${res.p1AvgChiLeft} / 16 Chi</td>
-                <td style="padding: 8px; text-align: center;">${res.p2AvgChiLeft} / 16 Chi</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #333;">
-                <td style="padding: 8px;">Avg. Match Duration</td>
-                <td colspan="2" style="padding: 8px; text-align: center; color: #ffaa00;">${res.avgRounds} Rounds</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px;">Draws / Double KO</td>
-                <td colspan="2" style="padding: 8px; text-align: center;">${res.draws}</td>
-              </tr>
-            </tbody>
-          </table>
-        `;
-      }
+      resultsBody.innerHTML = `
+        <div class="sim-summary-header" style="text-align: center; margin-bottom: 15px; font-family: monospace;">
+          <p class="sim-matchup-title" style="font-size: 1.1rem; color: #fff;">
+            <strong style="color: #00ffcc;">${res.p1Name} (${p1Diff.toUpperCase()})</strong> VS <strong style="color: #00ffcc;">${res.p2Name} (${p2Diff.toUpperCase()})</strong>
+          </p>
+          <p class="sim-winner-announce" style="font-size: 1.2rem; color: #00ffcc; font-weight: bold; margin-top: 5px;">
+            OVERALL WINNER: <span style="color: #ffcc00;">${overallWinner.toUpperCase()}</span>
+          </p>
+        </div>
+        <table class="sim-table" style="width: 100%; border-collapse: collapse; font-family: monospace; font-size: 14px; text-align: left;">
+          <thead>
+            <tr style="border-bottom: 2px solid #00ffcc; color: #00ffcc;">
+              <th style="padding: 8px;">STATISTIC</th>
+              <th style="padding: 8px; text-align: center;">${res.p1Name.toUpperCase()}</th>
+              <th style="padding: 8px; text-align: center;">${res.p2Name.toUpperCase()}</th>
+            </tr>
+          </thead>
+          <tbody style="color: #fff;">
+            <tr style="border-bottom: 1px solid #333;">
+              <td style="padding: 8px;">Victories (Win Rate)</td>
+              <td style="padding: 8px; text-align: center;"><strong>${res.p1Wins}</strong> (${res.p1WinRate}%)</td>
+              <td style="padding: 8px; text-align: center;"><strong>${res.p2Wins}</strong> (${res.p2WinRate}%)</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #333;">
+              <td style="padding: 8px;">Avg. LP Remaining</td>
+              <td style="padding: 8px; text-align: center;">${res.p1AvgLpLeft} LP</td>
+              <td style="padding: 8px; text-align: center;">${res.p2AvgLpLeft} LP</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #333;">
+              <td style="padding: 8px;">Avg. Chi Remaining</td>
+              <td style="padding: 8px; text-align: center;">${res.p1AvgChiLeft} / 16 Chi</td>
+              <td style="padding: 8px; text-align: center;">${res.p2AvgChiLeft} / 16 Chi</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #333;">
+              <td style="padding: 8px;">Avg. Match Duration</td>
+              <td colspan="2" style="padding: 8px; text-align: center; color: #ffaa00;">${res.avgRounds} Rounds</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px;">Draws / Double KO</td>
+              <td colspan="2" style="padding: 8px; text-align: center;">${res.draws}</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
     } catch (err) {
       console.error("Simulation execution error:", err);
-      if (resultsBody) {
-        resultsBody.innerHTML = `<p style="color: #ff2a5f; text-align: center; font-family: monospace;">SIMULATION ERROR: ${err.message}</p>`;
-      }
+      resultsBody.innerHTML = `<p style="color: #ff2a5f; text-align: center; font-family: monospace; padding: 15px;">SIMULATION ERROR: ${err.message}</p>`;
     }
   }, 50);
 };
@@ -403,14 +449,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   window.updateSelectionUI();
 
-  const simBtn = document.getElementById('btn-simulate-matches');
-  if (simBtn) simBtn.addEventListener('click', window.handleSimulateMatches);
+  // Attach listener to all potential button IDs across versions
+  ['btn-simulate-matches', 'btn-simulate', 'simulate-btn'].forEach(id => {
+    const simBtn = document.getElementById(id);
+    if (simBtn) {
+      simBtn.addEventListener('click', window.handleSimulateMatches);
+    }
+  });
 
   const closeSimBtn = document.getElementById('btn-close-sim-modal');
   if (closeSimBtn) {
     closeSimBtn.addEventListener('click', () => {
       const modal = document.getElementById('sim-modal');
-      if (modal) modal.hidden = true;
+      if (modal) {
+        modal.hidden = true;
+        modal.style.display = 'none';
+      }
     });
   }
 
