@@ -963,8 +963,9 @@ async function executeTurnResolutionPhase() {
   const p1DmgTaken = p1StartLp - window.gameState.p1.lp;
   const p2DmgTaken = p2StartLp - window.gameState.p2.lp;
 
+// Fix: Pass outcome object to recordTurnOutcome instead of boolean
   if (window.gameState.p2.isCPU && window.globalAIKnowledge && typeof window.calculateMoveSuccess === 'function') {
-    const wasSuccessful = window.calculateMoveSuccess(window.gameState.p2, window.gameState.p1, p2MoveKey, {
+    const outcomeObj = {
       damageDealt: p1DmgTaken,
       damageTaken: p2DmgTaken,
       oppChargePercent: window.gameState.p1.activeChargePercent || 100,
@@ -974,12 +975,12 @@ async function executeTurnResolutionPhase() {
       chiSpent: p2Move.chiCost || 0,
       oppAttemptedAttack: p1Move.type !== 'DEFENSE' && p1Move.type !== 'IDLE',
       faintRecovered: Math.max(0, p2StartFaint - window.gameState.p2.faintMeter)
-    });
-    window.globalAIKnowledge.recordTurnOutcome(window.gameState.p2, window.gameState.p1, p1MoveKey, p2MoveKey, wasSuccessful);
+    };
+    window.globalAIKnowledge.recordTurnOutcome(window.gameState.p2, window.gameState.p1, p1MoveKey, p2MoveKey, outcomeObj);
   }
 
   if (window.gameState.p1.isCPU && window.globalAIKnowledge && typeof window.calculateMoveSuccess === 'function') {
-    const wasSuccessful = window.calculateMoveSuccess(window.gameState.p1, window.gameState.p2, p1MoveKey, {
+    const outcomeObj = {
       damageDealt: p2DmgTaken,
       damageTaken: p1DmgTaken,
       oppChargePercent: window.gameState.p2.activeChargePercent || 100,
@@ -989,8 +990,8 @@ async function executeTurnResolutionPhase() {
       chiSpent: p1Move.chiCost || 0,
       oppAttemptedAttack: p2Move.type !== 'DEFENSE' && p2Move.type !== 'IDLE',
       faintRecovered: Math.max(0, p1StartFaint - window.gameState.p1.faintMeter)
-    });
-    window.globalAIKnowledge.recordTurnOutcome(window.gameState.p1, window.gameState.p2, p2MoveKey, p1MoveKey, wasSuccessful);
+    };
+    window.globalAIKnowledge.recordTurnOutcome(window.gameState.p1, window.gameState.p2, p2MoveKey, p1MoveKey, outcomeObj);
   }
 
   processRoundBuffs(window.gameState.p1);
