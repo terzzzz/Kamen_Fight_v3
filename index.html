@@ -131,8 +131,8 @@
         <div class="stat-line"><span id="p2-lp" class="stat-value-styled">LP: 2500 / 2500</span></div>
         <div class="stat-line"><span id="p2-chi" class="stat-value-styled">CHI: 8 / 16</span></div>
 
-        <div class="chi-bar-wrapper" style="width: 100%; height: 8px; background: #111; border: 1px solid #00bfff; margin: 3px 0; border-radius: 2px; overflow: hidden;">
-          <div id="p2-chi-bar-fill" class="chi-bar-fill" style="width: 50%; height: 100%; background: #00bfff; transition: width 0.3s;"></div>
+        <div class="chi-bar-wrapper" style="width: 100%; height: 8px; background: #111; border: 1px solid #00ffcc; margin: 3px 0; border-radius: 2px; overflow: hidden;">
+          <div id="p2-chi-bar-fill" class="chi-bar-fill" style="width: 50%; height: 100%; background: #00ffcc; transition: width 0.3s;"></div>
         </div>
 
         <div class="faint-bar-wrapper">
@@ -184,47 +184,49 @@
       </div>
     </div>
 
-   <!-- DUAL CONTROLS PANEL -->
-<div class="dual-controls-panel" id="human-control-panel">
-  <div class="compact-pad-container p1-side" id="p1-controls">
-    <div class="pad-label">PLAYER 1 [W-A-S-D + I-J-K-L]</div>
-    <div class="charge-bar-wrapper" style="width: 100%; margin-bottom: 4px; flex-direction: column; gap: 2px;">
-      <div id="charge-status-display" class="charge-status" style="font-size: 0.7rem; width: 100%; text-align: center;">TAP DIRECTION TO CHARGE</div>
-      <div id="p1-action-flag" class="action-flag" hidden>LOCKED!</div>
-    </div>
-    <div class="pad-grid-4x2">
-      <button class="pad-btn p1-btn dir-btn" id="key-W">W</button>
-      <button class="pad-btn p1-btn dir-btn" id="key-A">A</button>
-      <button class="pad-btn p1-btn dir-btn" id="key-S">S</button>
-      <button class="pad-btn p1-btn dir-btn" id="key-D">D</button>
-      <button class="pad-btn p1-act act-btn" id="key-I">I</button>
-      <button class="pad-btn p1-act act-btn" id="key-J">J</button>
-      <button class="pad-btn p1-act act-btn" id="key-K">K</button>
-      <button class="pad-btn p1-act act-btn" id="key-L">L</button>
-    </div>
-  </div>
+    <!-- DUAL CONTROLS PANEL -->
+    <div class="dual-controls-panel" id="human-control-panel">
+      <div class="compact-pad-container p1-side" id="p1-controls">
+        <div class="pad-label">PLAYER 1 [W-A-S-D + I-J-K-L]</div>
+        <div class="charge-bar-wrapper" style="width: 100%; margin-bottom: 4px; flex-direction: column; gap: 2px;">
+          <div id="charge-status-display" class="charge-status" style="font-size: 0.7rem; width: 100%; text-align: center;">TAP DIRECTION TO CHARGE</div>
+          <div id="p1-action-flag" class="action-flag" hidden>LOCKED!</div>
+        </div>
+        <div class="pad-grid-4x2">
+          <button class="pad-btn p1-btn dir-btn" id="key-W">W</button>
+          <button class="pad-btn p1-btn dir-btn" id="key-A">A</button>
+          <button class="pad-btn p1-btn dir-btn" id="key-S">S</button>
+          <button class="pad-btn p1-btn dir-btn" id="key-D">D</button>
+          <button class="pad-btn p1-act act-btn" id="key-I">I</button>
+          <button class="pad-btn p1-act act-btn" id="key-J">J</button>
+          <button class="pad-btn p1-act act-btn" id="key-K">K</button>
+          <button class="pad-btn p1-act act-btn" id="key-L">L</button>
+        </div>
+      </div>
 
-  <div class="compact-pad-container p2-side" id="p2-controls" hidden>
-    <div class="pad-label">PLAYER 2 [ARROWS + 1-2-3-5]</div>
-    <div class="charge-bar-wrapper" style="width: 100%; margin-bottom: 4px; flex-direction: column; gap: 2px;">
-      <div id="p2-charge-status-display" class="charge-status" style="font-size: 0.7rem; width: 100%; text-align: center; color: #00bfff;">P2 TOUCH READY</div>
-      <div id="p2-action-flag" class="action-flag" hidden>LOCKED!</div>
+      <div class="compact-pad-container p2-side" id="p2-controls" hidden>
+        <div class="pad-label">PLAYER 2 [ARROWS + 1-2-3-5]</div>
+        <div class="charge-bar-wrapper" style="width: 100%; margin-bottom: 4px; flex-direction: column; gap: 2px;">
+          <div id="p2-charge-status-display" class="charge-status" style="font-size: 0.7rem; width: 100%; text-align: center; color: #00ffcc;">P2 TOUCH READY</div>
+          <div id="p2-action-flag" class="action-flag" hidden>LOCKED!</div>
+        </div>
+        <div class="pad-grid-4x2">
+          <button class="pad-btn p2-btn" id="p2-key-W">▲</button>
+          <button class="pad-btn p2-btn" id="p2-key-A">◄</button>
+          <button class="pad-btn p2-btn" id="p2-key-S">▼</button>
+          <button class="pad-btn p2-btn" id="p2-key-D">►</button>
+          <button class="pad-btn p2-act" id="p2-key-I">5</button>
+          <button class="pad-btn p2-act" id="p2-key-J">1</button>
+          <button class="pad-btn p2-act" id="p2-key-K">2</button>
+          <button class="pad-btn p2-act" id="p2-key-L">3</button>
+        </div>
+      </div>
     </div>
-    <div class="pad-grid-4x2">
-      <button class="pad-btn p2-btn" id="p2-key-W">▲</button>
-      <button class="pad-btn p2-btn" id="p2-key-A">◄</button>
-      <button class="pad-btn p2-btn" id="p2-key-S">▼</button>
-      <button class="pad-btn p2-btn" id="p2-key-D">►</button>
-      <button class="pad-btn p2-act" id="p2-key-I">5</button>
-      <button class="pad-btn p2-act" id="p2-key-J">1</button>
-      <button class="pad-btn p2-act" id="p2-key-K">2</button>
-      <button class="pad-btn p2-act" id="p2-key-L">3</button>
-    </div>
+
   </div>
-</div>
 
   <!-- SIMULATION RESULTS MODAL -->
-  <div id="sim-modal" hidden>
+  <div id="sim-modal" class="sim-modal" hidden>
     <div class="sim-modal-content">
       <h2 style="color: #00ffcc; margin-top: 0; text-align: center;">SIMULATION RESULTS</h2>
       <div id="sim-results-body"></div>
@@ -247,6 +249,7 @@
   <script src="js/combat_engine.js"></script>
   <script src="js/match_manager.js"></script>
   <script src="js/ui.js"></script>
+    
   <script src="js/vs_select.js"></script>
   <script src="js/game.js"></script>
 </body>
