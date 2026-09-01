@@ -1,5 +1,5 @@
 /**
- * Combat Engine, Attack Resolution & Damage Calculations
+ * Combat Engine, Attack Resolution & Real-Time CPU Charging
  * Path: js/combat_engine.js
  */
 
@@ -54,17 +54,8 @@ var FALLBACK_ICHIGO_MOVES = window.FALLBACK_ICHIGO_MOVES || {
 
 window.cpuChargeIntervals = window.cpuChargeIntervals || {};
 
-/* --- REAL-TIME HUMAN-LIKE CPU TURN ROUTINE WITH 5s FALLBACK --- */
+/* --- REAL-TIME CPU ROUTINE WITH REACTIVE GUARD LOGIC --- */
 
-/**
- * Step 1: At round start, CPU evaluates desired move & target charge %
- * Step 2: Holds direction button (W, S, D, A) and charges up live on HUD
- * Step 3: Taps action key to lock in choice
- * 
- * Fallback Twist: If Defense ('A+') is chosen or charging stalls past 5.0 seconds,
- * re-evaluate a non-A skill tree move in milliseconds, charge it, and force-select
- * at 7.9 seconds to avoid falling idle.
- */
 window.startCPUTurnRoutine = function(slotKey) {
   const playerObj = window.gameState ? window.gameState[slotKey] : null;
   const oppKey = slotKey === 'p1' ? 'p2' : 'p1';
@@ -72,133 +63,112 @@ window.startCPUTurnRoutine = function(slotKey) {
 
   if (!playerObj || !playerObj.isCPU) return;
 
-  // Clear existing routine timer if active
   if (window.cpuChargeIntervals[slotKey]) {
     clearInterval(window.cpuChargeIntervals[slotKey]);
     window.cpuChargeIntervals[slotKey] = null;
   }
 
-  // Reset charge state at start of round
   playerObj.activeChargePercent = 0;
   syncChargeBarUI(slotKey, 0, '');
 
-  const moves = slotKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
-
-  // Helper: Selects a valid non-Defense move (excluding 'A+' stance tree and 'DO_NOTHING')
-  const getNonDefenseMove = () => {
-    if (!moves) return 'D+J';
-    const validKeys = Object.keys(moves).filter(k => !k.startsWith('A+') && k !== 'DO_NOTHING');
-    if (validKeys.length === 0) return 'D+J';
-    // Filter moves affordable with current Chi
-    const affordable = validKeys.filter(k => (moves[k].chiCost || 0) <= playerObj.chi);
-    const pool = affordable.length > 0 ? affordable : validKeys;
-    return pool[Math.floor(Math.random() * pool.length)];
-  };
-
-  // STEP 1: EVALUATE DESIRED MOVE & TARGET CHARGE % AT ROUND START
   let moveKey = 'DO_NOTHING';
   if (typeof window.getCPUMoveChoice === 'function' && oppObj) {
     moveKey = window.getCPUMoveChoice(playerObj, oppObj, slotKey);
   }
 
-  if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = moveKey;
-  if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = moveKey;
+  const moves = slotKey === 'p1' ? window.gameState.p1Moves : window.gameState.p2Moves;
+  const move = (moves && moves[moveKey]) ? moves[moveKey] : null;
 
-  if (!moveKey || moveKey === 'DO_NOTHING') {
+  if (!moveKey || moveKey === 'DO_NOTHING' || !move) {
+    if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = 'DO_NOTHING';
+    if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = 'DO_NOTHING';
     playerObj.activeChargePercent = 0;
     syncChargeBarUI(slotKey, 0, 'DO_NOTHING');
     return;
   }
 
-  let parts = moveKey.split('+');
-  let currentDirKey = parts[0] || '';
-  let currentActKey = parts[1] || '';
+  const parts = moveKey.split('+');
+  if (parts.length !== 2) return;
 
-  // Calculate Target Charge % based on difficulty
-  const diff = playerObj.difficulty || 'normal';
-  const baseTarget = diff === 'hard' ? 95 : (diff === 'easy' ? 70 : 85);
-  const variance = Math.floor(Math.random() * 11) - 5; // -5% to +5%
-  let targetChargePct = Math.min(100, Math.max(25, baseTarget + variance));
+  const dirKey = parts[0];
+  const actKey = parts[1];
 
-  const startTime = Date.now();
-  let hasReevaluatedAt5s = false;
+  // Identify if this is a 0-Chi Standard Guard vs Chi-consuming Guard/Attack
+  const isZeroChiGuard = (dirKey === 'A' && (move.chiCost || 0) === 0);
 
-  // STEP 2: HOLD DIRECTION BUTTON & CHARGE LIVE
-  if (currentDirKey) {
-    simulateCPUDirectionButton(slotKey, currentDirKey, true);
+  // For 0-Chi Guard, keep selectedMoveKey as 'DO_NOTHING' until player reacts
+  if (!isZeroChiGuard) {
+    if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = moveKey;
+    if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = moveKey;
+  } else {
+    if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = 'DO_NOTHING';
+    if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = 'DO_NOTHING';
   }
 
+  const diff = playerObj.difficulty || 'normal';
+  const baseTarget = isZeroChiGuard ? 100 : (diff === 'hard' ? 95 : (diff === 'easy' ? 70 : 85));
+  const variance = isZeroChiGuard ? 0 : (Math.floor(Math.random() * 11) - 5);
+  const targetChargePct = Math.min(100, Math.max(25, baseTarget + variance));
+
+  // Hold direction button (A, W, S, or D)
+  simulateCPUDirectionButton(slotKey, dirKey, true);
+
   const chargeTimes = window.CHARGE_TIMES || { W: 3500, A: 2200, S: 4200, D: 3000 };
+  const totalChargeMs = chargeTimes[dirKey] || 2200;
   const intervalMs = 50;
+  const pctIncrement = (intervalMs / totalChargeMs) * 100;
 
   window.cpuChargeIntervals[slotKey] = setInterval(() => {
     if (!window.gameState || window.gameState.roundPhase !== 'INPUT') {
       clearInterval(window.cpuChargeIntervals[slotKey]);
       window.cpuChargeIntervals[slotKey] = null;
-      if (currentDirKey) simulateCPUDirectionButton(slotKey, currentDirKey, false);
+      simulateCPUDirectionButton(slotKey, dirKey, false);
       return;
     }
 
-    const elapsedSec = (Date.now() - startTime) / 1000.0;
-
-    // --- FALLBACK TWIST: TIMER PASSED 5 SECONDS & DEFENSE / UNCONFIRMED ---
-    if (elapsedSec >= 5.0 && !hasReevaluatedAt5s && (currentDirKey === 'A' || playerObj.activeChargePercent < targetChargePct)) {
-      hasReevaluatedAt5s = true;
-
-      // Release previous directional key
-      if (currentDirKey) simulateCPUDirectionButton(slotKey, currentDirKey, false);
-
-      // Immediately evaluate non-A skill tree move
-      moveKey = getNonDefenseMove();
-      parts = moveKey.split('+');
-      currentDirKey = parts[0];
-      currentActKey = parts[1];
-
-      if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = moveKey;
-      if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = moveKey;
-
-      // Start holding new direction button
-      simulateCPUDirectionButton(slotKey, currentDirKey, true);
+    // Check if opponent confirmed a move
+    let oppConfirmed = false;
+    if (oppKey === 'p1') {
+      oppConfirmed = !!(window.gameState.p1IsConfirmed || (window.gameState.input && window.gameState.input.isConfirmed && window.gameState.input.selectedMoveKey && window.gameState.input.selectedMoveKey !== 'DO_NOTHING'));
+    } else {
+      oppConfirmed = !!(window.gameState.p2IsConfirmed || (window.gameState.p2SelectedMoveKey && window.gameState.p2SelectedMoveKey !== 'DO_NOTHING'));
     }
 
-    // Charge Increment Calculation
-    const totalChargeMs = chargeTimes[currentDirKey] || 3000;
-    const pctIncrement = (intervalMs / totalChargeMs) * 100;
-    playerObj.activeChargePercent = (playerObj.activeChargePercent || 0) + pctIncrement;
+    if (playerObj.activeChargePercent < targetChargePct) {
+      playerObj.activeChargePercent = Math.min(targetChargePct, (playerObj.activeChargePercent || 0) + pctIncrement);
+    }
+
     const currentPct = Math.min(100, Math.round(playerObj.activeChargePercent));
+    syncChargeBarUI(slotKey, currentPct, isZeroChiGuard ? 'A' : moveKey);
 
-    // Live update bottom HUD charge bar
-    syncChargeBarUI(slotKey, currentPct, moveKey);
+    if (isZeroChiGuard) {
+      // 0-CHI GUARD REACTIVE HOLD LOGIC
+      if (currentPct >= targetChargePct && oppConfirmed) {
+        clearInterval(window.cpuChargeIntervals[slotKey]);
+        window.cpuChargeIntervals[slotKey] = null;
 
-    // --- FORCE SELECT AT 7.9 SECONDS TO PREVENT IDLE ---
-    if (elapsedSec >= 7.9) {
-      clearInterval(window.cpuChargeIntervals[slotKey]);
-      window.cpuChargeIntervals[slotKey] = null;
+        playerObj.activeChargePercent = currentPct;
+        if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = moveKey;
+        if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = moveKey;
 
-      const finalPct = Math.max(25, currentPct);
-      playerObj.activeChargePercent = finalPct;
+        simulateCPUDirectionButton(slotKey, dirKey, false);
+        simulateCPUActionButton(slotKey, actKey);
+        syncChargeBarUI(slotKey, currentPct, moveKey, true);
+      }
+    } else {
+      // REGULAR SKILLS AND CHI-CONSUMING GUARDS (e.g. A+I)
+      if (currentPct >= targetChargePct) {
+        clearInterval(window.cpuChargeIntervals[slotKey]);
+        window.cpuChargeIntervals[slotKey] = null;
 
-      if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = moveKey;
-      if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = moveKey;
+        playerObj.activeChargePercent = currentPct;
+        if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = moveKey;
+        if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = moveKey;
 
-      if (currentDirKey) simulateCPUDirectionButton(slotKey, currentDirKey, false);
-      if (currentActKey) simulateCPUActionButton(slotKey, currentActKey);
-      syncChargeBarUI(slotKey, finalPct, moveKey, true);
-      return;
-    }
-
-    // STEP 3: STANDARD CONFIRMATION BEFORE 7.9s
-    if (currentPct >= targetChargePct && currentDirKey !== 'A') {
-      clearInterval(window.cpuChargeIntervals[slotKey]);
-      window.cpuChargeIntervals[slotKey] = null;
-
-      playerObj.activeChargePercent = currentPct;
-      if (slotKey === 'p1') window.gameState.p1SelectedMoveKey = moveKey;
-      if (slotKey === 'p2') window.gameState.p2SelectedMoveKey = moveKey;
-
-      simulateCPUDirectionButton(slotKey, currentDirKey, false);
-      simulateCPUActionButton(slotKey, currentActKey);
-      syncChargeBarUI(slotKey, currentPct, moveKey, true);
+        simulateCPUDirectionButton(slotKey, dirKey, false);
+        simulateCPUActionButton(slotKey, actKey);
+        syncChargeBarUI(slotKey, currentPct, moveKey, true);
+      }
     }
   }, intervalMs);
 };
@@ -244,7 +214,7 @@ function syncChargeBarUI(slotKey, percent, moveKey, isLocked = false) {
   const fillEl = document.getElementById(`${slotKey}-charge-fill`);
   const textEl = document.getElementById(`${slotKey}-charge-text`);
   const roundedPct = Math.min(100, Math.max(0, Math.round(percent)));
-  const dirPrefix = (typeof moveKey === 'string' && moveKey.includes('+')) ? moveKey.split('+')[0] : '';
+  const dirPrefix = (typeof moveKey === 'string' && moveKey.includes('+')) ? moveKey.split('+')[0] : (moveKey || '');
 
   if (fillEl) {
     fillEl.style.width = `${roundedPct}%`;
@@ -661,19 +631,12 @@ async function executeTurnResolutionPhase() {
   let p1MoveKey = window.gameState.p1SelectedMoveKey;
   let p2MoveKey = window.gameState.p2SelectedMoveKey;
 
-  // Fallback safety if CPU routine was skipped
   if (window.gameState.p1.isCPU && (!p1MoveKey || p1MoveKey === 'DO_NOTHING')) {
-    p1MoveKey = window.getCPUMoveChoice(window.gameState.p1, window.gameState.p2, 'p1');
-    if (window.gameState.p1.activeChargePercent === undefined || window.gameState.p1.activeChargePercent === 0) {
-      window.gameState.p1.activeChargePercent = 85;
-    }
+    p1MoveKey = 'DO_NOTHING';
   }
 
-  if (window.gameState.p2.isCPU && (!p2MoveKey || p2MoveKey === 'DO_NOTHING') && !window.gameState.p2AlwaysIdle) {
-    p2MoveKey = window.getCPUMoveChoice(window.gameState.p2, window.gameState.p1, 'p2');
-    if (window.gameState.p2.activeChargePercent === undefined || window.gameState.p2.activeChargePercent === 0) {
-      window.gameState.p2.activeChargePercent = 85;
-    }
+  if (window.gameState.p2.isCPU && (!p2MoveKey || p2MoveKey === 'DO_NOTHING')) {
+    p2MoveKey = 'DO_NOTHING';
   }
 
   if (!p1MoveKey) p1MoveKey = 'DO_NOTHING';
@@ -685,7 +648,6 @@ async function executeTurnResolutionPhase() {
   const p1Charge = window.gameState.p1.activeChargePercent !== undefined ? window.gameState.p1.activeChargePercent : 100;
   const p2Charge = window.gameState.p2.activeChargePercent !== undefined ? window.gameState.p2.activeChargePercent : 100;
 
-  // Lock and display exact final charge %
   syncChargeBarUI('p1', p1Charge, p1MoveKey, true);
   syncChargeBarUI('p2', p2Charge, p2MoveKey, true);
 
