@@ -35,10 +35,11 @@ window.vsSelectionState = window.vsSelectionState || {
 window.confirmStep = function(e) {
   if (e && e.preventDefault) e.preventDefault();
   const state = window.vsSelectionState;
+  let currentStep = parseInt(state.step, 10) || 1;
   
-  if (state.step === 1) {
+  if (currentStep === 1) {
     state.step = 2; // Advance to P2 Selection
-  } else if (state.step === 2) {
+  } else if (currentStep === 2) {
     state.step = 3; // Advance to Ready For Battle
   }
   window.updateSelectionUI();
@@ -47,22 +48,23 @@ window.confirmStep = function(e) {
 window.goBackStep = function(e) {
   if (e && e.preventDefault) e.preventDefault();
   const state = window.vsSelectionState;
+  let currentStep = parseInt(state.step, 10) || 1;
   
-  if (state.step === 2) {
-    state.step = 1; // Return to P1 Selection
-  } else if (state.step === 3) {
-    state.step = 2; // Return to P2 Selection
+  if (currentStep === 2) {
+    state.step = 1;
+  } else if (currentStep === 3) {
+    state.step = 2;
   }
   window.updateSelectionUI();
 };
 
 // Global function aliases for HTML inline onclick handlers
-window.confirmP1 = window.confirmStep;
-window.confirmP2 = window.confirmStep;
+window.confirmP1 = function(e) { window.vsSelectionState.step = 2; window.updateSelectionUI(); };
+window.confirmP2 = function(e) { window.vsSelectionState.step = 3; window.updateSelectionUI(); };
 window.confirmSelection = window.confirmStep;
 window.nextStep = window.confirmStep;
-window.confirmP1Selection = window.confirmStep;
-window.confirmP2Selection = window.confirmStep;
+window.confirmP1Selection = window.confirmP1;
+window.confirmP2Selection = window.confirmP2;
 
 /* --- BGM CONTROLLERS --- */
 
@@ -74,16 +76,12 @@ window.changeBGMVolume = function(val) {
 
 window.playSelectionBGM = function() {
   if (window.selectionBGM) return;
-
   try {
     window.selectionBGM = new Audio('assets/sounds/matchup.mp3');
     window.selectionBGM.loop = true;
     window.selectionBGM.volume = window.currentVolume;
-
     const playPromise = window.selectionBGM.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(() => {});
-    }
+    if (playPromise !== undefined) playPromise.catch(() => {});
   } catch (e) {
     console.warn("Audio load error:", e);
   }
@@ -99,16 +97,12 @@ window.stopSelectionBGM = function() {
 
 window.playBattleBGM = function() {
   if (window.battleBGM) return;
-
   try {
     window.battleBGM = new Audio('assets/sounds/matchup1.mp3');
     window.battleBGM.loop = true;
     window.battleBGM.volume = window.currentVolume;
-
     const playPromise = window.battleBGM.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(() => {});
-    }
+    if (playPromise !== undefined) playPromise.catch(() => {});
   } catch (e) {
     console.warn("Audio load error:", e);
   }
@@ -127,11 +121,12 @@ window.stopBattleBGM = function() {
 window.cycleRider = function(playerKey, direction) {
   const riders = window.AVAILABLE_RIDERS;
   const state = window.vsSelectionState;
+  const currentStep = parseInt(state.step, 10) || 1;
   if (!riders || riders.length === 0) return;
 
-  if (playerKey === 'p1' && state.step === 1) {
+  if (playerKey === 'p1' && currentStep === 1) {
     state.p1Index = (state.p1Index + direction + riders.length) % riders.length;
-  } else if (playerKey === 'p2' && state.step === 2) {
+  } else if (playerKey === 'p2' && currentStep === 2) {
     state.p2Index = (state.p2Index + direction + riders.length) % riders.length;
   }
   window.updateSelectionUI();
@@ -140,11 +135,12 @@ window.cycleRider = function(playerKey, direction) {
 window.toggleControlType = function(playerKey) {
   const errorBanner = document.getElementById('vs-error-banner');
   const state = window.vsSelectionState;
+  const currentStep = parseInt(state.step, 10) || 1;
 
-  if (playerKey === 'p1' && state.step === 1) {
+  if (playerKey === 'p1' && currentStep === 1) {
     state.p1IsCPU = !state.p1IsCPU;
     if (errorBanner) errorBanner.hidden = true;
-  } else if (playerKey === 'p2' && state.step === 2) {
+  } else if (playerKey === 'p2' && currentStep === 2) {
     state.p2IsCPU = !state.p2IsCPU;
     if (errorBanner) errorBanner.hidden = true;
   }
@@ -154,10 +150,11 @@ window.toggleControlType = function(playerKey) {
 window.toggleDifficulty = function(playerKey) {
   const nextDiff = { 'easy': 'normal', 'normal': 'hard', 'hard': 'easy' };
   const state = window.vsSelectionState;
+  const currentStep = parseInt(state.step, 10) || 1;
 
-  if (playerKey === 'p1' && state.p1IsCPU && state.step === 1) {
+  if (playerKey === 'p1' && state.p1IsCPU && currentStep === 1) {
     state.p1Difficulty = nextDiff[state.p1Difficulty] || 'normal';
-  } else if (playerKey === 'p2' && state.p2IsCPU && state.step === 2) {
+  } else if (playerKey === 'p2' && state.p2IsCPU && currentStep === 2) {
     state.p2Difficulty = nextDiff[state.p2Difficulty] || 'normal';
   }
   window.updateSelectionUI();
@@ -167,6 +164,8 @@ window.updateSelectionUI = function() {
   const riders = window.AVAILABLE_RIDERS;
   const state = window.vsSelectionState;
   if (!riders || riders.length === 0) return;
+
+  const currentStep = parseInt(state.step, 10) || 1;
 
   if (state.p1Index >= riders.length) state.p1Index = 0;
   if (state.p2Index >= riders.length) state.p2Index = 0;
@@ -222,9 +221,11 @@ window.updateSelectionUI = function() {
   const p1Card = document.getElementById('p1-card');
   const p2Card = document.getElementById('p2-card');
   const headerText = document.getElementById('select-step-title') || document.getElementById('vs-header-text');
-  const confirmBtn = document.getElementById('confirm-btn') || document.getElementById('confirm-p1-btn');
-  const startBtn = document.getElementById('start-game-btn');
-  const backBtn = document.getElementById('back-btn');
+  
+  // Target all possible button element IDs and classes
+  const confirmBtns = document.querySelectorAll('#confirm-btn, #confirm-p1-btn, #confirm-p2-btn, .btn-confirm, .confirm-btn');
+  const startBtn = document.getElementById('start-game-btn') || document.querySelector('.btn-start');
+  const backBtn = document.getElementById('back-btn') || document.querySelector('.btn-back');
 
   const p1LeftBtn = document.getElementById('p1-left-btn');
   const p1RightBtn = document.getElementById('p1-right-btn');
@@ -236,7 +237,7 @@ window.updateSelectionUI = function() {
     if (simBtn) simBtn.disabled = false;
   });
 
-  if (state.step === 1) {
+  if (currentStep === 1) {
     if (headerText) headerText.textContent = 'STEP 1: SELECT PLAYER 1 RIDER';
     if (p1Card) p1Card.className = 'rider-card active-slot';
     if (p2Card) p2Card.className = 'rider-card locked-slot';
@@ -246,19 +247,20 @@ window.updateSelectionUI = function() {
     if (p2LeftBtn) p2LeftBtn.disabled = true;
     if (p2RightBtn) p2RightBtn.disabled = true;
 
-    if (confirmBtn) {
-      confirmBtn.hidden = false;
-      confirmBtn.style.display = 'inline-block';
-      confirmBtn.textContent = 'CONFIRM P1';
-      confirmBtn.disabled = false;
-    }
+    confirmBtns.forEach(btn => {
+      btn.hidden = false;
+      btn.style.display = 'inline-block';
+      btn.textContent = 'CONFIRM P1';
+      btn.disabled = false;
+    });
+
     if (startBtn) {
       startBtn.hidden = true;
       startBtn.style.display = 'none';
     }
     if (backBtn) backBtn.disabled = true;
 
-  } else if (state.step === 2) {
+  } else if (currentStep === 2) {
     if (headerText) headerText.textContent = 'STEP 2: SELECT PLAYER 2 RIDER';
     if (p1Card) p1Card.className = 'rider-card locked-slot';
     if (p2Card) p2Card.className = 'rider-card active-slot';
@@ -268,19 +270,20 @@ window.updateSelectionUI = function() {
     if (p2LeftBtn) p2LeftBtn.disabled = false;
     if (p2RightBtn) p2RightBtn.disabled = false;
 
-    if (confirmBtn) {
-      confirmBtn.hidden = false;
-      confirmBtn.style.display = 'inline-block';
-      confirmBtn.textContent = 'CONFIRM P2';
-      confirmBtn.disabled = false;
-    }
+    confirmBtns.forEach(btn => {
+      btn.hidden = false;
+      btn.style.display = 'inline-block';
+      btn.textContent = 'CONFIRM P2';
+      btn.disabled = false;
+    });
+
     if (startBtn) {
       startBtn.hidden = true;
       startBtn.style.display = 'none';
     }
     if (backBtn) backBtn.disabled = false;
 
-  } else if (state.step === 3) {
+  } else if (currentStep === 3) {
     if (headerText) headerText.textContent = 'READY FOR BATTLE!';
     if (p1Card) p1Card.className = 'rider-card active-slot';
     if (p2Card) p2Card.className = 'rider-card active-slot';
@@ -290,10 +293,11 @@ window.updateSelectionUI = function() {
     if (p2LeftBtn) p2LeftBtn.disabled = true;
     if (p2RightBtn) p2RightBtn.disabled = true;
 
-    if (confirmBtn) {
-      confirmBtn.hidden = true;
-      confirmBtn.style.display = 'none';
-    }
+    confirmBtns.forEach(btn => {
+      btn.hidden = true;
+      btn.style.display = 'none';
+    });
+
     if (startBtn) {
       startBtn.hidden = false;
       startBtn.style.display = 'inline-block';
@@ -307,7 +311,7 @@ window.handleSimulateMatches = function(e) {
   if (e && e.preventDefault) e.preventDefault();
 
   if (typeof window.runBatchSimulation !== 'function') {
-    alert('Simulation engine (js/simulator.js) is not loaded! Make sure <script src="js/simulator.js"></script> is included in index.html.');
+    alert('Simulation engine (js/simulator.js) is not loaded!');
     return;
   }
 
@@ -462,7 +466,21 @@ window.validateAndStartMatch = function() {
 /* --- GLOBAL EVENT DELEGATION LISTENER --- */
 
 document.addEventListener('click', (e) => {
-  const confirmBtn = e.target.closest('#confirm-btn, #confirm-p1-btn, #confirm-p2-btn, .btn-confirm');
+  const p1Btn = e.target.closest('#confirm-p1-btn, #btn-confirm-p1');
+  if (p1Btn) {
+    window.vsSelectionState.step = 2;
+    window.updateSelectionUI();
+    return;
+  }
+
+  const p2Btn = e.target.closest('#confirm-p2-btn, #btn-confirm-p2');
+  if (p2Btn) {
+    window.vsSelectionState.step = 3;
+    window.updateSelectionUI();
+    return;
+  }
+
+  const confirmBtn = e.target.closest('#confirm-btn, .btn-confirm, .confirm-btn, [data-action="confirm"]');
   if (confirmBtn) {
     window.confirmStep(e);
     return;
