@@ -288,5 +288,140 @@
     "A+J": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
     "A+K": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
     "A+L": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" }
+  },
+  "x": {
+    "W+I": {
+      "name": "Jump",
+      "type": "UTILITY",
+      "chiCost": 3,
+      "baseDamage": 0,
+      "hitChance": 100,
+      "video": "jump.mp4",
+      "grantsAirborne": 2,
+      "buff": {
+        "id": "airborne_boost",
+        "label": "AIR (+15% D-ATK / +20% EVS)",
+        "type": "speed",
+        "duration": 2
+      }
+    },
+    "W+J": {
+      "name": "Mercury Overdrive",
+      "type": "UTILITY",
+      "chiCost": 3,
+      "baseDamage": 0,
+      "hitChance": 100,
+      "video": "mercury_boost.mp4",
+      "buff": {
+        "id": "mercury_atk",
+        "label": "MERCURY ATK (+15% D/S ATK)",
+        "type": "attack",
+        "duration": 3
+      }
+    },
+    "W+K": {
+      "name": "Mercury Fortification",
+      "type": "UTILITY",
+      "chiCost": 3,
+      "baseDamage": 0,
+      "hitChance": 100,
+      "video": "mercury_guard.mp4",
+      "buff": {
+        "id": "mercury_def",
+        "label": "MERCURY DEF (-20% DMG TAKEN)",
+        "type": "defense",
+        "duration": 3
+      }
+    },
+    "W+L": {
+      "name": "Kaizorg Vitality",
+      "type": "UTILITY",
+      "chiCost": 5,
+      "baseDamage": 0,
+      "hitChance": 100,
+      "video": "kaizorg_surge.mp4",
+      "faintRecovery": 10,
+      "lpRecovery": 250
+    },
+    "D+J": {
+      "name": "Standard Punch",
+      "type": "PHYSICAL",
+      "chiCost": 0,
+      "baseDamage": 60,
+      "hitChance": 80,
+      "video": "punch.mp4"
+    },
+    "D+K": {
+      "name": "Standard Kick",
+      "type": "PHYSICAL",
+      "chiCost": 0,
+      "baseDamage": 70,
+      "hitChance": 80,
+      "video": "kick.mp4"
+    },
+    "D+L": {
+      "name": "Ridol Rod Strike",
+      "type": "PHYSICAL",
+      "chiCost": 1,
+      "baseDamage": 142,
+      "hitChance": 80,
+      "video": "rod_strike.mp4",
+      "chiRefundOnHit": 3
+    },
+    "D+I": {
+      "name": "Ridol Whip Lash",
+      "type": "PHYSICAL",
+      "chiCost": 1,
+      "baseDamage": 130,
+      "baseFaintDamage": 25,
+      "hitChance": 84,
+      "video": "whip_lash.mp4",
+      "chiRefundOnHit": 3
+    },
+    "S+J": {
+      "name": "Rider Kick",
+      "type": "SPECIAL",
+      "chiCost": 4,
+      "baseDamage": 440,
+      "hitChance": 80,
+      "video": "rider_kick.mp4"
+    },
+    "S+K": {
+      "name": "X-Kick",
+      "type": "SPECIAL",
+      "chiCost": 6,
+      "baseDamage": 700,
+      "hitChance": 72,
+      "video": "x_kick.mp4"
+    },
+    "S+L": {
+      "name": "Ridol Longpole X-Kick",
+      "type": "SPECIAL",
+      "chiCost": 7,
+      "baseDamage": 900,
+      "baseFaintDamage": 35,
+      "hitChance": 70,
+      "video": "longpole_kick.mp4"
+    },
+    "S+I": {
+      "name": "Vacuum Hell Wheel",
+      "type": "SPECIAL",
+      "chiCost": 10,
+      "baseDamage": 1111,
+      "hitChance": 75,
+      "video": "vacuum_hell_wheel.mp4"
+    },
+    "A+I": {
+      "name": "Ridol Windmill Guard",
+      "type": "DEFENSE",
+      "chiCost": 3,
+      "baseDamage": 0,
+      "hitChance": 100,
+      "video": "windmill_guard.mp4",
+      "isSpecialGuard": true
+    },
+    "A+J": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
+    "A+K": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" },
+    "A+L": { "name": "Guard", "type": "DEFENSE", "chiCost": 0, "baseDamage": 0, "hitChance": 100, "video": "guard.mp4" }
   }
 }
