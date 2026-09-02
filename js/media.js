@@ -3,8 +3,13 @@
  * Path: js/media.js
  */
 
-// Orientation Resolver (Inverted facing flip logic for P1 / P2)
+// Orientation Resolver (Corrected facing flip logic for P1 / P2)
 function getTransformFlip(player, playerKey, moveObj = null) {
+  // 1. If move explicitly specifies unmirrored, force native orientation
+  if (moveObj && moveObj.unmirrored === true) {
+    return 'scaleX(1)';
+  }
+
   const riderId = (player && player.id) ? player.id : (playerKey === 'p1' ? 'ichigo' : 'nigo');
   const defaultFacing = (riderId === 'nigo') ? 'right' : 'left';
 
@@ -12,16 +17,11 @@ function getTransformFlip(player, playerKey, moveObj = null) {
     ? moveObj.sourceFacing 
     : ((player && player.sourceFacing) ? player.sourceFacing : defaultFacing);
 
-  let shouldFlip = false;
-  if (nativeFacing === 'left') {
-    shouldFlip = (playerKey === 'p2');
-  } else {
-    shouldFlip = (playerKey === 'p1');
-  }
+  // P1 stands on the left and must face RIGHT; P2 stands on the right and must face LEFT
+  const targetFacing = (playerKey === 'p1') ? 'right' : 'left';
 
-  if (moveObj && moveObj.unmirrored) {
-    shouldFlip = !shouldFlip;
-  }
+  // Flip only if native video orientation does not match the target facing direction
+  const shouldFlip = (nativeFacing !== targetFacing);
 
   return shouldFlip ? 'scaleX(-1)' : 'scaleX(1)';
 }
@@ -109,6 +109,8 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
     centerVid.playsInline = true;
     centerVid.setAttribute('playsinline', '');
     centerVid.setAttribute('webkit-playsinline', '');
+    
+    // Explicitly calculate and set transform
     centerVid.style.transform = getTransformFlip(player, playerKey, moveObj);
 
     let resolved = false;
@@ -124,6 +126,7 @@ function playCenterVideo(playerKey, videoFile, actionName = '', maxDurationMs = 
       centerVid.removeEventListener('loadedmetadata', setupDynamicTimeout);
 
       centerVid.pause();
+      centerVid.style.transform = 'none';
       centerBox.hidden = true;
       centerBox.style.display = 'none';
       if (actionLabel) actionLabel.hidden = true;
@@ -166,6 +169,7 @@ function hideCenterScreen() {
   if (centerVid) {
     centerVid.pause();
     centerVid.removeAttribute('src');
+    centerVid.style.transform = 'none';
   }
   if (centerBox) {
     centerBox.hidden = true;
